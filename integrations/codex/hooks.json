@@ -1,0 +1,49 @@
+{
+  "description": "Lúmen Pet receives Codex turn lifecycle notifications.",
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/usr/bin/gjs -m /home/crysnanth/projetos/meu_pet/integrations/codex/hook-adapter.js",
+            "timeout": 2
+          }
+        ]
+      }
+    ],
+    "PermissionRequest": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/usr/bin/gjs -m /home/crysnanth/projetos/meu_pet/integrations/codex/hook-adapter.js",
+            "timeout": 2
+          }
+        ]
+      }
+    ],
+    "Interrupt": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/usr/bin/gjs -m /home/crysnanth/projetos/meu_pet/integrations/codex/hook-adapter.js",
+            "timeout": 2
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/usr/bin/gjs -m /home/crysnanth/projetos/meu_pet/integrations/codex/hook-adapter.js",
+            "timeout": 2
+          }
+        ]
+      }
+    ]
+  }
+}

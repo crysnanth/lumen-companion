@@ -1,0 +1,184 @@
+const TASK_STATES = {
+    task_started: {state: 'working', priority: 60},
+    working: {state: 'working', priority: 60},
+    thinking: {state: 'thinking', priority: 50},
+    approval_required: {state: 'approval_required', priority: 100, persistent: true},
+    input_required: {state: 'input_required', priority: 90, persistent: true},
+    task_failed: {state: 'failed', priority: 80, persistent: true},
+};
+
+const TERMINAL_EVENTS = new Set(['task_completed', 'task_interrupted', 'idle']);
+const EVENT_KINDS = new Set([...Object.keys(TASK_STATES), ...TERMINAL_EVENTS]);
+const MAX_TITLE_LENGTH = 80;
+const MAX_MESSAGE_LENGTH = 200;
+const MAX_IDENTIFIER_LENGTH = 128;
+const MAX_DEDUPE_KEYS = 256;
+const MAX_TASK_TIMESTAMPS = 512;
+const MAX_ACTIVE_TASKS = 512;
+const DEFAULT_TITLES = {
+    approval_required: 'Permissão necessária',
+    input_required: 'Informação necessária',
+    task_failed: 'Ocorreu um erro',
+};
+
+function cleanText(value, maxLength) {
+    if (typeof value !== 'string')
+        return '';
+
+    const normalized = value.replace(/[\u0000-\u001F\u007F]/g, ' ').trim();
+    return Array.from(normalized).slice(0, maxLength).join('');
+}
+
+function taskKey(event) {
+    return JSON.stringify([event.source, event.session_id, event.task_id]);
+}
+
+function validIdentifier(value) {
+    return typeof value === 'string' && value.length > 0 && value === value.trim() &&
+        value.length <= MAX_IDENTIFIER_LENGTH && !/[\u0000-\u001F\u007F]/.test(value);
+}
+
+function validateEvent(event) {
+    if (!event || typeof event !== 'object' || Array.isArray(event))
+        return 'event must be an object';
+    if (event.schema_version !== 1)
+        return 'unsupported schema_version';
+    if (!validIdentifier(event.source))
+        return 'source must contain 1 to 128 characters';
+    if (!validIdentifier(event.session_id))
+        return 'session_id must contain 1 to 128 characters';
+    if (!validIdentifier(event.task_id))
+        return 'task_id must contain 1 to 128 characters';
+    if (!EVENT_KINDS.has(event.kind))
+        return 'unknown event kind';
+    if (typeof event.timestamp !== 'string' ||
+        !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/.test(event.timestamp) ||
+        !Number.isFinite(Date.parse(event.timestamp)))
+        return 'timestamp must be a valid date string';
+    if (event.title !== undefined && typeof event.title !== 'string')
+        return 'title must be a string';
+    if (event.message !== undefined && typeof event.message !== 'string')
+        return 'message must be a string';
+
+    return null;
+}
+
+export class PetStateMachine {
+    constructor() {
+        this._tasks = new Map();
+        this._lastTimestampByTask = new Map();
+        this._dedupeKeys = new Set();
+        this._dedupeQueue = [];
+    }
+
+    handleEvent(event) {
+        const validationError = validateEvent(event);
+        if (validationError)
+            return {accepted: false, reason: validationError, ...this.getSnapshot()};
+
+        const key = taskKey(event);
+        const timestamp = Date.parse(event.timestamp);
+        const eventKey = JSON.stringify([key, event.kind, event.timestamp]);
+        if (this._dedupeKeys.has(eventKey))
+            return {accepted: false, reason: 'duplicate event', ...this.getSnapshot()};
+
+        const previousTimestamp = this._lastTimestampByTask.get(key);
+        if (previousTimestamp !== undefined && timestamp <= previousTimestamp)
+            return {accepted: false, reason: 'out-of-order event', ...this.getSnapshot()};
+
+        if (!TERMINAL_EVENTS.has(event.kind) && !this._tasks.has(key) && this._tasks.size >= MAX_ACTIVE_TASKS)
+            return {accepted: false, reason: 'too many active tasks', ...this.getSnapshot()};
+
+        this._rememberEvent(eventKey);
+        this._rememberTaskTimestamp(key, timestamp);
+
+        if (TERMINAL_EVENTS.has(event.kind))
+            this._tasks.delete(key);
+        else {
+            const definition = TASK_STATES[event.kind];
+            this._tasks.set(key, {
+                session_id: event.session_id,
+                task_id: event.task_id,
+                source: event.source,
+                state: definition.state,
+                priority: definition.priority,
+                persistent: Boolean(definition.persistent),
+                title: cleanText(event.title, MAX_TITLE_LENGTH) || DEFAULT_TITLES[event.kind] || '',
+                message: cleanText(event.message, MAX_MESSAGE_LENGTH),
+                timestamp,
+            });
+        }
+
+        const selected = this.getSnapshot();
+        if (event.kind === 'task_completed') {
+            // A pending approval, question, or failure keeps precedence over a
+            // short celebration. Otherwise the view returns to selected.state.
+            if (selected.priority >= 80)
+                return {accepted: true, ...selected};
+
+            return {
+                accepted: true,
+                state: 'completed',
+                resumeState: selected.state,
+                title: cleanText(event.title, MAX_TITLE_LENGTH) || 'Tarefa concluída',
+                message: cleanText(event.message, MAX_MESSAGE_LENGTH),
+                persistent: false,
+                task_id: event.task_id,
+                priority: 70,
+            };
+        }
+
+        return {accepted: true, ...selected};
+    }
+
+    getSnapshot() {
+        let selected = null;
+        for (const task of this._tasks.values()) {
+            if (!selected || task.priority > selected.priority ||
+                (task.priority === selected.priority && task.timestamp > selected.timestamp))
+                selected = task;
+        }
+
+        if (!selected) {
+            return {
+                state: 'idle',
+                resumeState: 'idle',
+                title: '',
+                message: '',
+                persistent: false,
+                task_id: null,
+                source: null,
+                priority: 10,
+            };
+        }
+
+        return {
+            state: selected.state,
+            resumeState: selected.state,
+            title: selected.title,
+            message: selected.message,
+            persistent: selected.persistent,
+            task_id: selected.task_id,
+            source: selected.source,
+            priority: selected.priority,
+        };
+    }
+
+    _rememberEvent(eventKey) {
+        this._dedupeKeys.add(eventKey);
+        this._dedupeQueue.push(eventKey);
+        if (this._dedupeQueue.length > MAX_DEDUPE_KEYS) {
+            const expired = this._dedupeQueue.shift();
+            this._dedupeKeys.delete(expired);
+        }
+    }
+
+    _rememberTaskTimestamp(key, timestamp) {
+        this._lastTimestampByTask.delete(key);
+        this._lastTimestampByTask.set(key, timestamp);
+        if (this._lastTimestampByTask.size > MAX_TASK_TIMESTAMPS) {
+            const oldestKey = this._lastTimestampByTask.keys().next().value;
+            this._lastTimestampByTask.delete(oldestKey);
+        }
+    }
+}

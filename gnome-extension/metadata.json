@@ -1,0 +1,7 @@
+{
+  "uuid": "lumen-pet@meu-pet.local",
+  "name": "Lúmen Pet",
+  "description": "Mascote visual mínimo para a área de trabalho GNOME.",
+  "shell-version": ["48"],
+  "settings-schema": "org.gnome.shell.extensions.lumen-pet"
+}

@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist>
+  <schema id="org.gnome.shell.extensions.lumen-pet"
+          path="/org/gnome/shell/extensions/lumen-pet/">
+    <key name="pet-size" type="s">
+      <default>'medium'</default>
+      <choices>
+        <choice value="small"/>
+        <choice value="medium"/>
+        <choice value="large"/>
+      </choices>
+      <summary>Tamanho do Lúmen</summary>
+      <description>Escala de exibição em pixel art: 96, 128 ou 160 pixels.</description>
+    </key>
+    <key name="animations-enabled" type="b">
+      <default>true</default>
+      <summary>Animações do Lúmen</summary>
+      <description>Se ativado, os quadros dos estados são animados.</description>
+    </key>
+    <key name="hide-in-fullscreen" type="b">
+      <default>false</default>
+      <summary>Ocultar o Lúmen em tela cheia</summary>
+      <description>Se ativado, oculta o personagem em telas com um aplicativo em tela cheia.</description>
+    </key>
+    <key name="sounds-enabled" type="b">
+      <default>true</default>
+      <summary>Sons do Lúmen</summary>
+      <description>Se ativado, toca alertas curtos para eventos importantes.</description>
+    </key>
+    <key name="position-monitor" type="i">
+      <default>0</default>
+      <summary>Monitor do Lúmen</summary>
+      <description>Índice do monitor que contém o personagem.</description>
+    </key>
+    <key name="position-x" type="i">
+      <default>24</default>
+      <summary>Posição horizontal do Lúmen</summary>
+      <description>Deslocamento horizontal relativo ao monitor.</description>
+    </key>
+    <key name="position-y" type="i">
+      <default>90</default>
+      <summary>Posição vertical do Lúmen</summary>
+      <description>Deslocamento vertical relativo ao monitor.</description>
+    </key>
+  </schema>
+</schemalist>
