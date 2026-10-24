@@ -36,10 +36,20 @@ assert(result.state === 'approval_required', 'older event does not replace appro
 result = machine.handleEvent(event('task_interrupted', 'task-a', 3));
 assert(result.accepted && result.state === 'idle', 'interruption clears pending state without marking success');
 
-const approvalRecoveryMachine = new PetStateMachine();
-approvalRecoveryMachine.handleEvent(event('approval_required', 'task-approved', 1));
-result = approvalRecoveryMachine.handleEvent(event('working', 'task-approved', 2));
-assert(result.accepted && result.state === 'working', 'tool activity clears a previously pending approval');
+const approvalGuardMachine = new PetStateMachine();
+approvalGuardMachine.handleEvent(event('approval_required', 'task-approved', 1));
+result = approvalGuardMachine.handleEvent(event('working', 'task-approved', 2));
+assert(result.accepted && result.state === 'approval_required',
+    'uncorrelated activity from another parallel tool cannot hide a pending approval');
+result = approvalGuardMachine.handleEvent(event('idle', 'task-approved', 3));
+assert(result.accepted && result.state === 'idle', 'turn stop clears the approval after the accepted tool flow ends');
+
+const deniedApprovalMachine = new PetStateMachine();
+deniedApprovalMachine.handleEvent(event('approval_required', 'task-denied', 1));
+assert(deniedApprovalMachine.getSnapshot().state === 'approval_required',
+    'a denied permission remains visible without a correlated resolution event');
+result = deniedApprovalMachine.handleEvent(event('task_interrupted', 'task-denied', 2));
+assert(result.accepted && result.state === 'idle', 'interruption clears a denied pending approval');
 
 machine.handleEvent(event('task_started', 'task-work', 4));
 machine.handleEvent(event('task_failed', 'task-failure', 5));
@@ -79,8 +89,9 @@ result = boundedMachine.handleEvent({...event('working', 'task-bad-date', 4), ti
 assert(!result.accepted && result.reason.includes('timestamp'), 'timestamp must use ISO 8601 with a timezone');
 result = boundedMachine.handleEvent({...event('working', 'task-unknown-source', 5), source: 'codex'});
 assert(result.accepted && result.source === 'codex_cli', 'legacy Codex source is migrated to codex_cli');
-result = boundedMachine.handleEvent({...event('working', 'task-unknown-source-2', 6), source: 'unknown-agent'});
-assert(!result.accepted && result.reason === 'unsupported source', 'unregistered source is rejected');
+const futureSourceMachine = new PetStateMachine();
+result = futureSourceMachine.handleEvent({...event('working', 'task-future-source', 1), source: 'future_agent'});
+assert(result.accepted && result.source === 'future_agent', 'valid future agent identifiers do not require a state-machine change');
 
 const optionalFieldsMachine = new PetStateMachine();
 const {title: _title, message: _message, ...minimalEvent} = event('working', 'minimal-event', 1);

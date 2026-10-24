@@ -16,7 +16,7 @@ Os nomes são sensíveis a maiúsculas e minúsculas. Os campos desconhecidos s�
 | Campo | Obrigatório | Tipo e regra |
 |---|---:|---|
 | `schema_version` | Sim | Inteiro `1`. Outra versão é rejeitada. |
-| `source` | Sim | Identificador estável: `codex_cli`, `claude_code` ou `simulator`. O valor legado `codex` é aceito e normalizado para `codex_cli`. |
+| `source` | Sim | Identificador estável de 1 a 128 caracteres, sem espaços nas pontas ou controles. Fontes atuais: `codex_cli`, `claude_code` e `simulator`; identificadores futuros válidos também são aceitos. O valor legado `codex` é normalizado para `codex_cli`. |
 | `session_id` | Sim | String de 1 a 128 caracteres, sem espaços nas pontas ou caracteres de controle. |
 | `task_id` | Sim | String de 1 a 128 caracteres, com as mesmas regras de `session_id`. |
 | `kind` | Sim | Um dos tipos definidos abaixo. |
@@ -42,24 +42,24 @@ O JSON serializado deve ocupar no máximo **4096 bytes em UTF-8**. Caracteres mu
 
 `idle`, `task_completed`, `task_failed` e `task_interrupted` não são equivalentes. `task_completed` declara sucesso; `task_failed` declara falha; `task_interrupted` declara interrupção; `idle` apenas limpa o estado ativo sem afirmar um resultado. Se o hook do agente não fornece o resultado, o adaptador deve enviar `idle`, nunca inferir sucesso.
 
-Quando há várias tarefas, a maior prioridade fica visível; empates favorecem o evento mais recente. Eventos de encerramento afetam somente a combinação `source` + `session_id` + `task_id` correspondente.
+Quando há várias tarefas, a maior prioridade fica visível; empates favorecem o evento mais recente. Eventos de encerramento afetam somente a combinação `source` + `session_id` + `task_id` correspondente. Estados persistentes como `approval_required` não são substituídos por atividade de prioridade menor; só um evento terminal correlacionado encerra a espera.
 
 ## Fontes e capacidades dos adaptadores
 
 | `source` | Situação e eventos que pode reportar |
 |---|---|
-| `codex_cli` | Adaptador disponível: `task_started`, `approval_required`, `working`, `task_interrupted` e `idle`. `PreToolUse`/`PostToolUse` voltam a `working` depois que uma ferramenta pendente é liberada. O hook `Stop` não informa sucesso/falha e vira `idle`. Os hooks documentados não reportam `task_failed` nem `input_required`. |
+| `codex_cli` | Adaptador disponível: `task_started`, `approval_required`, `working`, `task_interrupted` e `idle`. `PreToolUse` reporta atividade, mas não confirma que resolveu um pedido específico. Como não há ID compartilhado com `PermissionRequest`, o aviso persiste até `Stop` (`idle`) ou interrupção. O hook `Stop` não informa sucesso/falha. Os hooks documentados não reportam `task_failed` nem `input_required`. |
 | `claude_code` | Nome reservado no contrato para um adaptador futuro. Ainda não há integração implementada neste repositório. |
 | `simulator` | Emissor local para desenvolvimento e demonstração; pode enviar todos os tipos aceitos. |
 
-O identificador legado `codex` continua aceito para eventos v1 gravados por versões anteriores da integração. A extensão o converte para `codex_cli` antes de ordenar, deduplicar ou associar tarefas. Novos produtores devem usar `codex_cli`. O restante do payload v1 permanece inalterado.
+O identificador legado `codex` continua aceito para eventos v1 gravados por versões anteriores da integração. A extensão o converte para `codex_cli` antes de ordenar, deduplicar ou associar tarefas. Novos produtores devem usar o identificador estável registrado para seu agente. A validação genérica não mantém uma whitelist de fontes: novos adaptadores podem introduzir identificadores válidos sem alterar a máquina de estados; capacidades específicas pertencem ao registro/catálogo de adaptadores quando implementado. O restante do payload v1 permanece inalterado.
 
 ## Ordenação, deduplicação e limites
 
 - Cada evento de uma mesma tarefa deve ter timestamp posterior ao evento anterior. Um timestamp igual ou anterior é rejeitado como fora de ordem.
-- Reenvio com a mesma fonte, sessão, tarefa, tipo e timestamp é rejeitado como duplicado.
-- O histórico de deduplicação, timestamps e tarefas ativas é limitado em memória; uma tarefa ativa não pode exceder 512 registros.
-- Identificadores inválidos, fontes não reconhecidas, tipos desconhecidos, datas inválidas e versões não suportadas são rejeitados com `accepted: false` e um motivo curto.
+- Reenvio com a mesma fonte, sessão, tarefa, tipo e timestamp é rejeitado como duplicado. São mantidas até 256 chaves de deduplicação.
+- O histórico de timestamps por tarefa e o número de tarefas ativas são limitados separadamente a 512 cada.
+- Identificadores inválidos, fontes com formato inválido, tipos desconhecidos, datas inválidas e versões não suportadas são rejeitados com `accepted: false` e um motivo curto.
 
 ## Exemplos
 
@@ -97,7 +97,7 @@ Payloads inválidos:
 {"schema_version": 2, "source": "codex_cli", "session_id": "s", "task_id": "t", "kind": "working", "timestamp": "2026-10-24T14:30:00Z"}
 ```
 
-Versão não suportada (`schema_version` não é `1`). Também são inválidos um payload sem `task_id`, uma fonte como `codex-cli` (use `codex_cli`), um `kind` como `success` e uma data sem fuso horário.
+Versão não suportada (`schema_version` não é `1`). Também são inválidos um payload sem `task_id`, uma fonte com espaços nas pontas ou caracteres de controle, um `kind` como `success` e uma data sem fuso horário. `codex-cli` tem formato válido, mas não é o identificador canônico do adaptador Codex; identificadores de fonte desconhecidos são aceitos pela validação genérica.
 
 ## Enviar eventos de teste
 

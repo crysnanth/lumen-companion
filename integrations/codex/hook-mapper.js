@@ -14,11 +14,6 @@ const EVENT_MAP = {
         title: 'Codex está trabalhando',
         message: 'A ferramenta está sendo executada.',
     },
-    PostToolUse: {
-        kind: 'working',
-        title: 'Codex está trabalhando',
-        message: 'A ferramenta terminou; o turno pode continuar.',
-    },
     Interrupt: {
         kind: 'task_interrupted',
         title: 'Tarefa interrompida',

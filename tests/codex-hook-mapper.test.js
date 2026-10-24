@@ -1,4 +1,5 @@
 import {mapCodexHookEvent} from '../integrations/codex/hook-mapper.js';
+import {PetStateMachine} from '../gnome-extension/lib/state-machine.js';
 
 function assert(condition, message) {
     if (!condition)
@@ -30,17 +31,28 @@ const preTool = mapCodexHookEvent({
     turn_id: 'turn-1',
     tool_input: {command: 'sensitive command'},
 });
-assert(preTool?.kind === 'working', 'approved tool execution clears the pending approval state');
+assert(preTool?.kind === 'working', 'tool start is reported as activity');
 assert(!JSON.stringify(preTool).includes('sensitive command'), 'pre-tool input is discarded');
 
-const postTool = mapCodexHookEvent({
-    hook_event_name: 'PostToolUse',
-    session_id: 'session-1',
-    turn_id: 'turn-1',
-    tool_response: 'sensitive output',
-});
-assert(postTool?.kind === 'working', 'tool completion keeps the task active until the turn ends');
-assert(!JSON.stringify(postTool).includes('sensitive output'), 'tool output is discarded');
+const approvalFlowMachine = new PetStateMachine();
+const pendingApproval = {...permission, timestamp: '2026-10-24T11:00:00Z'};
+approvalFlowMachine.handleEvent(pendingApproval);
+const acceptedToolActivity = {
+    ...preTool,
+    timestamp: '2026-10-24T11:00:01Z',
+};
+let flowResult = approvalFlowMachine.handleEvent(acceptedToolActivity);
+assert(flowResult.accepted && flowResult.state === 'approval_required',
+    'accepted tool activity cannot be mistaken for resolution of a parallel approval');
+const stopped = {
+    ...mapCodexHookEvent({hook_event_name: 'Stop', session_id: 'session-1', turn_id: 'turn-1'}),
+    timestamp: '2026-10-24T11:00:02Z',
+};
+flowResult = approvalFlowMachine.handleEvent(stopped);
+assert(flowResult.accepted && flowResult.state === 'idle', 'turn stop safely clears the pending approval');
+
+assert(mapCodexHookEvent({hook_event_name: 'PostToolUse', session_id: 's', turn_id: 't'}) === null,
+    'post-tool hook is omitted to avoid a second process per tool');
 
 assert(mapCodexHookEvent({hook_event_name: 'Interrupt', session_id: 's', turn_id: 't'})?.kind === 'task_interrupted', 'interrupt maps to interruption');
 assert(mapCodexHookEvent({hook_event_name: 'Stop', session_id: 's', turn_id: 't'})?.kind === 'idle', 'stop does not imply success');

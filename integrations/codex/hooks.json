@@ -34,17 +34,6 @@
         ]
       }
     ],
-    "PostToolUse": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "/usr/bin/gjs -m /home/crysnanth/projetos/meu_pet/integrations/codex/hook-adapter.js",
-            "timeout": 2
-          }
-        ]
-      }
-    ],
     "Interrupt": [
       {
         "hooks": [

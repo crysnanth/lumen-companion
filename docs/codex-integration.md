@@ -8,12 +8,11 @@ A integração atual usa os command hooks oficiais do Codex. O adaptador é exec
 |---|---|---|
 | `UserPromptSubmit` | `task_started` | Inicia a animação de trabalho |
 | `PermissionRequest` | `approval_required` | Exibe aviso persistente; a aprovação permanece na interface do Codex |
-| `PreToolUse` | `working` | Quando a ferramenta liberada começa, remove o aviso de aprovação e volta a mostrar trabalho |
-| `PostToolUse` | `working` | Mantém a tarefa em trabalho após o retorno da ferramenta, inclusive quando ela termina com erro |
+| `PreToolUse` | `working` | Reporta atividade quando uma ferramenta vai começar |
 | `Interrupt` | `task_interrupted` | Limpa a tarefa interrompida |
 | `Stop` | `idle` | Limpa o estado sem afirmar que houve sucesso |
 
-Os eventos `PreToolUse` e `PostToolUse` resolvem o ciclo visual da aprovação: `PermissionRequest` marca a espera, e a atividade da ferramenta aprovada retoma o estado `working`. O evento pós-ferramenta também cobre comandos que terminam com código de erro; o resultado final do turno continua sendo informado por `Stop` como `idle`.
+O aviso de aprovação é persistente. Embora `PreToolUse` informe que uma ferramenta vai começar, o Codex não documenta um `tool_use_id` compartilhado com `PermissionRequest`; portanto esse evento pode pertencer a outra ferramenta paralela. Por segurança, atividade não correlacionada não apaga o aviso. Ele é removido por `Stop` (`idle`) ou `Interrupt`. Assim, após uma aprovação aceita, o aviso pode permanecer até o turno encerrar; após uma negação, permanece até o Codex encerrar ou interromper o turno.
 
 O adaptador descarta `prompt`, `tool_input`, mensagens finais, comandos e caminhos. Usa apenas o tipo do hook, `session_id` e `turn_id`. Se o D-Bus estiver indisponível, o adaptador sai silenciosamente para que o Codex continue.
 
@@ -28,7 +27,7 @@ install -m 600 integrations/codex/hooks.json "$HOME/.codex/hooks.json"
 rm "$HOME/.codex/hooks.json" # remove a integração; não apaga o config.toml
 ```
 
-O caminho do adaptador no JSON é absoluto para esta cópia do projeto. Se o projeto for movido, atualize as seis entradas e revise/confie novamente os hooks em `/hooks`. Alterações na definição dos hooks também exigem nova revisão e confiança no Codex.
+O caminho do adaptador no JSON é absoluto para esta cópia do projeto. Se o projeto for movido, atualize as cinco entradas e revise/confie novamente os hooks em `/hooks`. Alterações na definição dos hooks também exigem nova revisão e confiança no Codex.
 
 ## Limitações do Codex CLI verificadas
 

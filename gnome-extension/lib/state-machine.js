@@ -16,7 +16,6 @@ const MAX_DEDUPE_KEYS = 256;
 const MAX_TASK_TIMESTAMPS = 512;
 const MAX_ACTIVE_TASKS = 512;
 export const MAX_EVENT_BYTES = 4096;
-const EVENT_SOURCES = new Set(['codex_cli', 'claude_code', 'simulator']);
 const DEFAULT_TITLES = {
     approval_required: 'Permissão necessária',
     input_required: 'Informação necessária',
@@ -52,8 +51,6 @@ export function validateEvent(event) {
         return 'unsupported schema_version';
     if (!validIdentifier(event.source))
         return 'source must contain 1 to 128 characters';
-    if (event.source !== 'codex' && !EVENT_SOURCES.has(event.source))
-        return 'unsupported source';
     if (!validIdentifier(event.session_id))
         return 'session_id must contain 1 to 128 characters';
     if (!validIdentifier(event.task_id))
@@ -106,6 +103,14 @@ export class PetStateMachine {
 
         this._rememberEvent(eventKey);
         this._rememberTaskTimestamp(key, timestamp);
+
+        const currentTask = this._tasks.get(key);
+        const nextDefinition = TASK_STATES[event.kind];
+        // Progress hooks do not carry a correlation key shared with
+        // PermissionRequest. Keep a persistent prompt visible until a terminal
+        // event confirms that this task has ended.
+        if (currentTask?.persistent && nextDefinition && nextDefinition.priority < currentTask.priority)
+            return {accepted: true, ...this.getSnapshot()};
 
         if (TERMINAL_EVENTS.has(event.kind))
             this._tasks.delete(key);
