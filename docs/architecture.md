@@ -1,5 +1,7 @@
 # Arquitetura do Lúmen Pet
 
+As fronteiras e os contratos para uma eventual apresentação em outros sistemas estão registrados no [ADR 0001](adr/0001-fronteiras-multiplataforma.md). O ADR mantém GJS/GNOME Shell e D-Bus como implementação atual; não introduz dependências nativas.
+
 ## Fluxo de eventos
 
 ```text

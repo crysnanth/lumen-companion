@@ -74,6 +74,7 @@ Isso remove a extensão. Os dados de posição e preferências do GNOME podem pe
 ## Documentação
 
 - [Arquitetura](docs/architecture.md)
+- [ADR 0001: fronteiras multiplataforma futuras](docs/adr/0001-fronteiras-multiplataforma.md)
 - [Desenvolvimento e empacotamento](docs/development.md)
 - [Eventos D-Bus](docs/events.md)
 - [Integração Codex CLI](docs/codex-integration.md)
