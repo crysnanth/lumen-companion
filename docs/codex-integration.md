@@ -18,16 +18,14 @@ O mapper descarta `prompt`, `tool_input`, mensagens finais, comandos e caminhos.
 
 Os eventos novos usam `source: "codex_cli"`. A extensão ainda aceita e normaliza `source: "codex"`, usado pela versão anterior do adaptador, para manter compatibilidade com mensagens v1 já produzidas.
 
-As definições ficam em `~/.codex/hooks.json`. Instale o arquivo para essa localização e confira os caminhos absolutos dos cinco comandos. Ao confiar os hooks pela tela `/hooks` do CLI, revise cada definição e aceite-a; o próprio Codex grava os hashes de confiança em `[hooks.state]` no `config.toml`. As demais configurações existentes são preservadas. Uma definição alterada fica pendente de nova revisão e confiança.
-
-Para instalar ou reverter manualmente:
+O instalador mescla as definições gerenciadas pelo Lúmen em `~/.codex/hooks.json`, preservando as demais configurações. Ele reconhece tanto entradas com `LUMEN_HOOK_ID=codex_cli` quanto o comando GJS antigo isolado que aponta diretamente para `integrations/codex/hook-adapter.js`. Assim, `enable` substitui a definição antiga pela atual e `disable` também remove instalações feitas pelo procedimento manual anterior. Comandos compostos, wrappers e invocações com argumentos adicionais são preservados; revise-os manualmente se estiver migrando uma instalação personalizada. Cada alteração de um arquivo existente grava primeiro uma cópia exata ao lado dele com o sufixo `.lumen-backup-<data>`. Para habilitar, atualizar ou remover:
 
 ```bash
-install -m 600 integrations/codex/hooks.json "$HOME/.codex/hooks.json"
-rm "$HOME/.codex/hooks.json" # remove a integração; não apaga o config.toml
+gjs -m integrations/manage-hooks.js enable codex_cli
+gjs -m integrations/manage-hooks.js disable codex_cli
 ```
 
-O caminho do adaptador no JSON é absoluto para esta cópia do projeto. Se o projeto for movido, atualize as cinco entradas e revise/confie novamente os hooks em `/hooks`. Alterações na definição dos hooks também exigem nova revisão e confiança no Codex.
+O comando `enable` pode ser repetido; ele atualiza os caminhos absolutos para este checkout sem duplicar hooks. Depois de habilitar ou atualizar, abra `/hooks`, revise e confie cada definição. O próprio Codex grava a revisão em `[hooks.state]` no `config.toml`; qualquer mudança de caminho ou comando pode exigir nova confiança. O instalador não altera nem remove `config.toml`.
 
 ## Limitações do Codex CLI verificadas
 
