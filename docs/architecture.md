@@ -12,7 +12,7 @@ O catálogo explícito em `integrations/catalog.js` registra adaptadores sem dep
 
 ## Componentes
 
-- `integrations/catalog.js`: registro consultável de adaptadores Codex CLI (disponível) e Claude Code (planejado; sem hook executável instalado).
+- `integrations/catalog.js`: registro consultável dos adaptadores Codex CLI e Claude Code, ambos com hooks executáveis e mapeamento para o contrato v1.
 - `integrations/common/agent-adapter.js`: contrato v1 compartilhado; capacidades são observações, e ações de controle são metadados separados.
 - `integrations/common/config-store.js`: preferências portáteis de integração em `$XDG_CONFIG_HOME/lumen/config.json` (ou `~/.config/lumen/config.json`), com versão de formato, defaults, validação, preservação de campos futuros e substituição atômica.
 - `integrations/codex/` e `integrations/claude-code/`: mapeiam hooks de cada agente para eventos do Lúmen.

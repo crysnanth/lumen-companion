@@ -6,6 +6,19 @@
 
 ## Medição de consumo
 
+### Método para repetir a coleta
+
+A extensão compartilha o processo do GNOME Shell; portanto, esta linha de base mede o processo hospedeiro e não isola o custo incremental do Lúmen. Para repetir a observação na mesma máquina, estabilize a sessão, registre `gnome-shell --version`, identifique o PID do Shell e colete CPU por 40 segundos e PSS/RSS antes e depois de cada período:
+
+```sh
+gnome-shell --version
+pgrep -a -x gnome-shell
+pidstat -h -u -p <PID> 1 40
+awk '/^(Rss|Pss):/ { print }' /proc/<PID>/smaps_rollup
+```
+
+Faça as coletas em períodos equivalentes de repouso e animação, anotando se o pet está habilitado, os aplicativos abertos e o uso de um Shell aninhado. Compare o mesmo PID quando possível. A coleta no Shell aninhado desta fase foi feita em sessão D-Bus e perfil DConf temporários; os valores abaixo incluem a atividade do GNOME Shell e dos serviços auxiliares.
+
 A extensão roda dentro do processo do GNOME Shell; portanto, o RSS total do Shell não representa a memória do pet. Para evitar interromper o Codex CLI e sua sessão principal, a comparação foi feita em um GNOME Shell aninhado com D-Bus e perfil DConf temporários.
 
 Leituras iniciais do Shell aninhado variaram aproximadamente entre 225 e 233 MiB de RSS e 127 e 135 MiB de PSS. Ao alternar a extensão no mesmo processo, as leituras diminuíram tanto ao ativar quanto ao desativar; isso indica coleta de lixo e variação interna do Shell maiores que a diferença atribuível ao pet. Assim, a comparação não sustenta um número incremental confiável. Não foi atribuído ao Lúmen o consumo total do Shell nem se declarou a meta de até 30 MiB como atingida.
