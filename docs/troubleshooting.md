@@ -11,13 +11,19 @@ Se estiver desabilitada, habilite-a com `gnome-extensions enable lumen-pet@meu-p
 
 ## O pet aparece, mas os eventos não chegam
 
-Confirme que a extensão está ativa e que o serviço D-Bus existe enviando um evento de teste:
+Abra **Integrações** nas preferências da extensão. Para cada agente, confira se os hooks do Lúmen estão na configuração local, se a preferência está habilitada e quando chegou o último evento real. Hooks instalados não significam que o agente está conectado ou em execução.
+
+Use **Testar integração** para enviar um evento sintético pelo mesmo caminho D-Bus. A confirmação aparece nesta tela e, quando não há um aviso persistente, como uma mensagem temporária no mascote. Um aviso de aprovação, pergunta ou falha pendente sempre permanece visível. O teste não cria tarefas nem altera prompts ou aprovações do agente. Se o D-Bus não estiver disponível, habilite ou reinicie a extensão e tente novamente.
+
+Também é possível confirmar o transporte pelo terminal:
 
 ```sh
 gjs -m integrations/simulator/send-event.js task_started
 ```
 
 O emissor retorna erro se o serviço não estiver disponível. O nome, caminho, interface e limites estão em [events.md](events.md).
+
+Se a linha de hooks indicar configuração inválida, corrija o JSON do agente antes de usar o instalador; ele preserva a configuração atual e cria um backup antes de alterá-la. Desabilitar a preferência de um agente interrompe a recepção de seus eventos no Lúmen, mas não remove os hooks. Para removê-los, use `gjs -m integrations/manage-hooks.js disable <codex_cli|claude_code>`.
 
 ## Ver mensagens do GNOME Shell
 

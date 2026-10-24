@@ -48,6 +48,19 @@ function isObject(value) {
     return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
 
+/** Return a concise structural error for an agent's hook event map, or null. */
+export function getHookConfigStructureError(hooks) {
+    if (!isObject(hooks))
+        return 'A propriedade "hooks" precisa ser um objeto.';
+    for (const [event, groups] of Object.entries(hooks)) {
+        if (!Array.isArray(groups))
+            return `A lista de hooks "${event}" precisa ser um array.`;
+        if (groups.some(group => !isObject(group) || !Array.isArray(group.hooks)))
+            return `O grupo de hooks "${event}" precisa conter uma lista "hooks".`;
+    }
+    return null;
+}
+
 export function readIntegrationConfig() {
     const path = getIntegrationConfigPath();
     const file = Gio.File.new_for_path(path);

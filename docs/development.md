@@ -22,6 +22,7 @@ gjs -m tests/claude-hook-mapper.test.js
 gjs -m tests/agent-adapters.test.js
 gjs -m tests/config-store.test.js
 gjs -m tests/integration-preferences.test.js
+gjs -m tests/integration-status.test.js
 gjs -m tests/pet-controller.test.js
 gjs -m tests/event-transport.test.js
 gjs -m tests/hook-installer.test.js
@@ -43,11 +44,12 @@ Para instalar e ativar a cópia local, consulte [README.md](../README.md). Em Wa
 
 1. Instale/ative a extensão e abra `gnome-extensions prefs lumen-pet@meu-pet.local`.
 2. Confirme que a página **Aparência** continua oferecendo tamanho, animações, tela cheia e sons; altere uma opção, feche e reabra as preferências para confirmar que ela persistiu no GSettings.
-3. Abra **Integrações** e confira as linhas separadas de configuração, conexão e eventos para Codex CLI e Claude Code. A tela não deve afirmar que há conexão persistente nem que está recebendo eventos em tempo real.
+3. Abra **Integrações** e confira os estados separados de hooks, preferência habilitada e último evento para Codex CLI e Claude Code. A tela não deve confundir hooks instalados com conexão ativa ou execução real.
 4. Alterne cada agente e escolha acompanhamento automático ou uma fonte preferida. Feche e reabra a janela e confira os valores em `~/.config/lumen/config.json` (ou `$XDG_CONFIG_HOME/lumen/config.json`). Em acompanhamento por fonte preferida, envie eventos de ambos os agentes e confirme que somente a fonte escolhida altera o Lúmen; agentes desabilitados também devem ser ignorados.
 5. Desabilite a fonte preferida atual e confirme que o acompanhamento volta para automático. Confira que a preferência não instala/remove hooks e que a interface informa isso claramente.
 6. Navegue pelas páginas e controles com Tab, Shift+Tab, setas e Espaço/Enter; confirme rótulos e estados acessíveis no Adwaita.
-7. Para comparar o estado de configuração, execute `gjs -m integrations/manage-hooks.js enable <codex_cli|claude_code>` e reabra as preferências. Revise/confie as definições no próprio agente. A linha **Configuração** deve refletir os hooks encontrados; conexão e recepção de eventos continuam descritas separadamente.
+7. Use **Testar integração** para confirmar o caminho até o mascote. O teste mostra uma mensagem temporária e não passa pela máquina de estados das tarefas. Com uma aprovação, pergunta ou falha persistente aberta, confirme que o aviso permanece visível e que o resultado do teste aparece nas preferências.
+8. Para comparar o estado dos hooks, execute `gjs -m integrations/manage-hooks.js enable <codex_cli|claude_code>` e reabra as preferências. Revise/confie as definições no próprio agente. JSON inválido deve aparecer como erro de configuração; desabilitar a preferência interrompe a recepção no Lúmen, sem remover hooks.
 
 ## Estrutura dos módulos
 
