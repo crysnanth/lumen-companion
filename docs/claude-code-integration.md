@@ -20,9 +20,14 @@ O mapper não lê nem copia prompts, argumentos de ferramentas, mensagens do age
 
 ## Instalação
 
-O arquivo `integrations/claude-code/hooks.json` é um fragmento para `~/.claude/settings.json`. Mescle seu objeto `hooks` às definições existentes para manter os outros hooks. Antes de usar, substitua `/home/crysnanth/projetos/meu_pet` nos comandos pelo caminho absoluto deste checkout. O timeout de cada hook é de dois segundos.
+O arquivo `integrations/claude-code/hooks.json` é um fragmento para `~/.claude/settings.json`. O instalador mescla as definições do Lúmen, gera caminhos absolutos para este checkout e preserva outras configurações e hooks. Cada alteração de um arquivo existente grava antes uma cópia exata ao lado dele com o sufixo `.lumen-backup-<data>`. Para habilitar, atualizar ou remover:
 
-Abra Claude Code e revise as definições na tela `/hooks`. Os hooks registrados em configurações do usuário ficam ativos nos projetos em que Claude Code é executado. Para remover a integração, remova somente as entradas adicionadas ao objeto `hooks`.
+```bash
+gjs -m integrations/manage-hooks.js enable claude_code
+gjs -m integrations/manage-hooks.js disable claude_code
+```
+
+O comando `enable` pode ser repetido e atualiza as entradas marcadas como `LUMEN_HOOK_ID=claude_code` sem duplicá-las. Depois de habilitar ou atualizar, abra Claude Code e revise/confie as definições na tela `/hooks`. Hooks em configurações do usuário ficam ativos nos projetos em que Claude Code é executado. A remoção apaga somente ações de hook gerenciadas pelo Lúmen e mantém o arquivo `settings.json`.
 
 ## Limitações
 

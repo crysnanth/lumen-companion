@@ -22,6 +22,7 @@ gjs -m tests/claude-hook-mapper.test.js
 gjs -m tests/agent-adapters.test.js
 gjs -m tests/config-store.test.js
 gjs -m tests/event-transport.test.js
+gjs -m tests/hook-installer.test.js
 glib-compile-schemas --strict --dry-run gnome-extension/schemas
 ```
 
