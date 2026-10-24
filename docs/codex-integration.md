@@ -1,6 +1,6 @@
 # Integração com Codex CLI
 
-A integração atual usa os command hooks oficiais do Codex. O adaptador é executado por evento e encaminha uma notificação JSON ao D-Bus local do Lúmen. Ele não retorna decisões de hook e termina sem saída em `stdout` ou `stderr`, para que não altere prompts, aprovações ou comandos do agente.
+A integração atual usa os command hooks oficiais do Codex. O adaptador é executado por evento e encaminha uma notificação JSON ao transporte local do Lúmen. A interface compartilhada em `integrations/common/event-transport.js` serializa e limita o payload; `integrations/linux/dbus-session-transport.js` implementa o transporte D-Bus da sessão GNOME; `integrations/event-sender.js` liga a interface ao backend disponível. Outro sistema pode fornecer um transporte com o mesmo método `sendEventJson(eventJson)` e registrá-lo nesse ponto de composição. O hook não retorna decisões e termina sem saída em `stdout` ou `stderr`, mesmo se a extensão estiver ausente ou o envio falhar.
 
 ## Eventos mapeados
 
@@ -14,7 +14,7 @@ A integração atual usa os command hooks oficiais do Codex. O adaptador é exec
 
 O aviso de aprovação é persistente. Embora `PreToolUse` informe que uma ferramenta vai começar, o Codex não documenta um `tool_use_id` compartilhado com `PermissionRequest`; portanto esse evento pode pertencer a outra ferramenta paralela. Por segurança, atividade não correlacionada não apaga o aviso. Ele é removido por `Stop` (`idle`) ou `Interrupt`. Assim, após uma aprovação aceita, o aviso pode permanecer até o turno encerrar; após uma negação, permanece até o Codex encerrar ou interromper o turno.
 
-O adaptador descarta `prompt`, `tool_input`, mensagens finais, comandos e caminhos. Usa apenas o tipo do hook, `session_id` e `turn_id`. Se o D-Bus estiver indisponível, o adaptador sai silenciosamente para que o Codex continue.
+O adaptador descarta `prompt`, `tool_input`, mensagens finais, comandos e caminhos. Usa apenas o tipo do hook, `session_id` e `turn_id`. A notificação usa timeout de 500 ms e falhas de serialização ou transporte são ignoradas para que o Codex continue.
 
 Os eventos novos usam `source: "codex_cli"`. A extensão ainda aceita e normaliza `source: "codex"`, usado pela versão anterior do adaptador, para manter compatibilidade com mensagens v1 já produzidas.
 

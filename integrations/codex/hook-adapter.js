@@ -1,14 +1,10 @@
 import Gio from 'gi://Gio';
 import GioUnix from 'gi://GioUnix';
-import GLib from 'gi://GLib';
-
+import {createPlatformEventSender} from '../event-sender.js';
 import {mapCodexHookEvent} from './hook-mapper.js';
 
-const BUS_NAME = 'local.meupet.LumenPet';
-const OBJECT_PATH = '/local/meupet/LumenPet';
-const INTERFACE_NAME = 'local.meupet.LumenPet1';
 const MAX_HOOK_INPUT_BYTES = 65536;
-const DBUS_TIMEOUT_MS = 500;
+const eventSender = createPlatformEventSender(500);
 
 function readHookInput() {
     const input = new Gio.DataInputStream({
@@ -21,30 +17,13 @@ function readHookInput() {
     return JSON.parse(line);
 }
 
-function notifyPet(event) {
-    const eventJson = JSON.stringify(event);
-    if (new TextEncoder().encode(eventJson).byteLength > 4096)
-        return;
-
-    Gio.DBus.session.call_sync(
-        BUS_NAME,
-        OBJECT_PATH,
-        INTERFACE_NAME,
-        'NotifyEvent',
-        new GLib.Variant('(s)', [eventJson]),
-        new GLib.VariantType('(bss)'),
-        Gio.DBusCallFlags.NONE,
-        DBUS_TIMEOUT_MS,
-        null);
-}
-
 // Hooks must have no effect on Codex decisions. Failures are intentionally
 // silent and the process always exits successfully without writing hook output.
 try {
     const hookEvent = readHookInput();
     const event = mapCodexHookEvent(hookEvent);
     if (event)
-        notifyPet(event);
+        eventSender.send(event);
 } catch (_error) {
     // The pet is optional; Codex continues without a notification.
 }

@@ -1,9 +1,4 @@
-import Gio from 'gi://Gio';
-import GLib from 'gi://GLib';
-
-const BUS_NAME = 'local.meupet.LumenPet';
-const OBJECT_PATH = '/local/meupet/LumenPet';
-const INTERFACE_NAME = 'local.meupet.LumenPet1';
+import {createPlatformEventSender} from '../event-sender.js';
 const EVENT_KINDS = new Set([
     'task_started',
     'working',
@@ -27,19 +22,18 @@ const TITLES = {
     idle: 'Disponível',
 };
 
+const eventSender = createPlatformEventSender(5000);
+
 function sendEventJson(eventJson) {
-    const reply = Gio.DBus.session.call_sync(
-        BUS_NAME,
-        OBJECT_PATH,
-        INTERFACE_NAME,
-        'NotifyEvent',
-        new GLib.Variant('(s)', [eventJson]),
-        new GLib.VariantType('(bss)'),
-        Gio.DBusCallFlags.NONE,
-        5000,
-        null);
-    const [accepted, state, reason] = reply.deepUnpack();
-    print(JSON.stringify({accepted, state, reason}));
+    const result = eventSender.sendSerialized(eventJson);
+    if (result === null) {
+        const reason = new TextEncoder().encode(eventJson).byteLength > 4096
+            ? 'event payload exceeds 4096 bytes'
+            : 'event could not be delivered';
+        print(JSON.stringify({accepted: false, state: 'idle', reason}));
+        return;
+    }
+    print(JSON.stringify(result));
 }
 
 const [kindOrOption, messageArg = '', taskIdArg = 'manual-task'] = ARGV;
