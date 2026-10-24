@@ -13,6 +13,8 @@ A integração atual usa os command hooks oficiais do Codex. O adaptador é exec
 
 O adaptador descarta `prompt`, `tool_input`, mensagens finais, comandos e caminhos. Usa apenas o tipo do hook, `session_id` e `turn_id`. Se o D-Bus estiver indisponível, o adaptador sai silenciosamente para que o Codex continue.
 
+Os eventos novos usam `source: "codex_cli"`. A extensão ainda aceita e normaliza `source: "codex"`, usado pela versão anterior do adaptador, para manter compatibilidade com mensagens v1 já produzidas.
+
 As definições ficam em `~/.codex/hooks.json`. Ao confiar os hooks pela tela `/hooks` do CLI, o próprio Codex grava os hashes de confiança em `[hooks.state]` no `config.toml`; as demais configurações existentes são preservadas. Uma definição alterada fica pendente de nova revisão.
 
 Para instalar ou reverter manualmente:

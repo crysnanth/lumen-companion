@@ -12,7 +12,7 @@ const started = mapCodexHookEvent({
     prompt: 'do not expose this prompt',
 });
 assert(started?.kind === 'task_started', 'prompt submission maps to task start');
-assert(started.source === 'codex' && started.task_id === 'turn-1', 'event keeps source and turn identity');
+assert(started.source === 'codex_cli' && started.task_id === 'turn-1', 'event uses the stable source name and turn identity');
 assert(!JSON.stringify(started).includes('do not expose this prompt'), 'prompt text is discarded');
 
 const permission = mapCodexHookEvent({

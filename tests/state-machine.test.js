@@ -1,4 +1,4 @@
-import {PetStateMachine} from '../gnome-extension/lib/state-machine.js';
+import {isEventPayloadWithinLimit, MAX_EVENT_BYTES, PetStateMachine} from '../gnome-extension/lib/state-machine.js';
 
 function assert(condition, message) {
     if (!condition)
@@ -8,7 +8,7 @@ function assert(condition, message) {
 function event(kind, taskId, second, extra = {}) {
     return {
         schema_version: 1,
-        source: 'test',
+        source: 'codex_cli',
         session_id: 'test-session',
         task_id: taskId,
         kind,
@@ -72,11 +72,30 @@ result = boundedMachine.handleEvent({...event('working', 'task-invalid', 3), kin
 assert(!result.accepted && result.reason === 'unknown event kind', 'unknown event kind is rejected');
 result = boundedMachine.handleEvent({...event('working', 'task-bad-date', 4), timestamp: 'October 23, 2026'});
 assert(!result.accepted && result.reason.includes('timestamp'), 'timestamp must use ISO 8601 with a timezone');
+result = boundedMachine.handleEvent({...event('working', 'task-unknown-source', 5), source: 'codex'});
+assert(result.accepted && result.source === 'codex_cli', 'legacy Codex source is migrated to codex_cli');
+result = boundedMachine.handleEvent({...event('working', 'task-unknown-source-2', 6), source: 'unknown-agent'});
+assert(!result.accepted && result.reason === 'unsupported source', 'unregistered source is rejected');
+
+const optionalFieldsMachine = new PetStateMachine();
+const {title: _title, message: _message, ...minimalEvent} = event('working', 'minimal-event', 1);
+result = optionalFieldsMachine.handleEvent(minimalEvent);
+assert(result.accepted && result.title === '', 'title and message are optional');
+
+assert(isEventPayloadWithinLimit('é'.repeat(MAX_EVENT_BYTES / 2)), 'exact 4096-byte UTF-8 payload is accepted');
+assert(!isEventPayloadWithinLimit('é'.repeat(MAX_EVENT_BYTES / 2 + 1)), 'multibyte payload over 4096 bytes is rejected');
+
+const compatibilityMachine = new PetStateMachine();
+const legacyResult = compatibilityMachine.handleEvent(event('task_started', 'same-task', 1, {source: 'codex'}));
+const canonicalDuplicate = compatibilityMachine.handleEvent(event('task_started', 'same-task', 1, {source: 'codex_cli'}));
+assert(legacyResult.accepted && legacyResult.source === 'codex_cli', 'legacy Codex source is normalized');
+assert(!canonicalDuplicate.accepted && canonicalDuplicate.reason === 'duplicate event',
+    'legacy and canonical Codex sources share identity and deduplication');
 
 const sourceMachine = new PetStateMachine();
-sourceMachine.handleEvent(event('approval_required', 'shared-task', 1, {source: 'agent-a'}));
-sourceMachine.handleEvent(event('working', 'shared-task', 2, {source: 'agent-b'}));
-result = sourceMachine.handleEvent(event('task_interrupted', 'shared-task', 3, {source: 'agent-a'}));
+sourceMachine.handleEvent(event('approval_required', 'shared-task', 1, {source: 'codex_cli'}));
+sourceMachine.handleEvent(event('working', 'shared-task', 2, {source: 'claude_code'}));
+result = sourceMachine.handleEvent(event('task_interrupted', 'shared-task', 3, {source: 'codex_cli'}));
 assert(result.state === 'working', 'task identity includes its agent source');
 
 const capacityMachine = new PetStateMachine();
@@ -87,4 +106,4 @@ for (let index = 0; index < 512; index++) {
 result = capacityMachine.handleEvent(event('working', 'capacity-overflow', 513));
 assert(!result.accepted && result.reason === 'too many active tasks', 'active task count is bounded');
 
-print('PASS: state machine event validation, priority, deduplication, ordering and completion transitions');
+print('PASS: state machine contract, compatibility, UTF-8 payload limits, priority, deduplication, ordering and completion transitions');

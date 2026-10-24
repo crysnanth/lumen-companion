@@ -35,7 +35,7 @@ export function mapCodexHookEvent(hookEvent) {
 
     return {
         schema_version: 1,
-        source: 'codex',
+        source: 'codex_cli',
         session_id: hookEvent.session_id,
         task_id: taskId,
         kind: mapped.kind,

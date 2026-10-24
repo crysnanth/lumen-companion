@@ -15,6 +15,8 @@ const MAX_IDENTIFIER_LENGTH = 128;
 const MAX_DEDUPE_KEYS = 256;
 const MAX_TASK_TIMESTAMPS = 512;
 const MAX_ACTIVE_TASKS = 512;
+export const MAX_EVENT_BYTES = 4096;
+const EVENT_SOURCES = new Set(['codex_cli', 'claude_code', 'simulator']);
 const DEFAULT_TITLES = {
     approval_required: 'Permissão necessária',
     input_required: 'Informação necessária',
@@ -38,13 +40,20 @@ function validIdentifier(value) {
         value.length <= MAX_IDENTIFIER_LENGTH && !/[\u0000-\u001F\u007F]/.test(value);
 }
 
-function validateEvent(event) {
+export function isEventPayloadWithinLimit(eventJson) {
+    return typeof eventJson === 'string' && eventJson.length <= MAX_EVENT_BYTES &&
+        new TextEncoder().encode(eventJson).byteLength <= MAX_EVENT_BYTES;
+}
+
+export function validateEvent(event) {
     if (!event || typeof event !== 'object' || Array.isArray(event))
         return 'event must be an object';
     if (event.schema_version !== 1)
         return 'unsupported schema_version';
     if (!validIdentifier(event.source))
         return 'source must contain 1 to 128 characters';
+    if (event.source !== 'codex' && !EVENT_SOURCES.has(event.source))
+        return 'unsupported source';
     if (!validIdentifier(event.session_id))
         return 'session_id must contain 1 to 128 characters';
     if (!validIdentifier(event.task_id))
@@ -75,6 +84,12 @@ export class PetStateMachine {
         const validationError = validateEvent(event);
         if (validationError)
             return {accepted: false, reason: validationError, ...this.getSnapshot()};
+
+        // `codex` was the source identifier emitted by the original v1 hook
+        // adapter. Normalize it at the boundary so old and new producers share
+        // task identity, deduplication and ordering behavior.
+        if (event.source === 'codex')
+            event = {...event, source: 'codex_cli'};
 
         const key = taskKey(event);
         const timestamp = Date.parse(event.timestamp);
