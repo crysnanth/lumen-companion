@@ -28,6 +28,8 @@ Os nomes são sensíveis a maiúsculas e minúsculas. Os campos desconhecidos s�
 
 O JSON serializado deve ocupar no máximo **4096 bytes em UTF-8**. Caracteres multibyte contam pelo tamanho codificado, não pelo número de caracteres. Campos `title` e `message` que não sejam strings são rejeitados; valores longos são truncados. Texto recebido é exibido como texto e nunca executado.
 
+As preferências também enviam `integration_test` com `test_id` ao serviço local para confirmar a comunicação. A extensão trata esse tipo à parte: mostra uma confirmação temporária no mascote, retorna `accepted: true` e não o encaminha à máquina de estados das tarefas. O teste não executa hooks nem altera dados do agente.
+
 ## Tipos e semântica
 
 | `kind` | Efeito | Prioridade |

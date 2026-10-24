@@ -40,11 +40,22 @@ export default class LumenPetExtension extends Extension {
         this._integrationConfig.start();
         this._controller.reconcileSources(this._integrationConfig.getActiveSources());
         this._eventBridge = new EventBridge(event => {
+            if (event?.schema_version === 1 && event.kind === 'integration_test' &&
+                ['codex_cli', 'claude_code'].includes(event.source) &&
+                typeof event.test_id === 'string' && event.test_id.length > 0) {
+                this._pet.showMessage('Teste recebido', 'A comunicação com o Lúmen está funcionando.');
+                return {accepted: true, state: this._controller.getSnapshot().state, reason: 'integration test received'};
+            }
             if (!this._integrationConfig.isEventEnabled(event?.source))
                 return {accepted: false, state: 'idle', reason: 'integration disabled or not preferred'};
             const result = this._controller.handleEvent(event);
-            if (result.accepted)
+            if (result.accepted) {
                 this._sounds.play(result.state);
+                const lastEventKeys = {codex_cli: 'last-event-codex-cli', claude_code: 'last-event-claude-code'};
+                const key = lastEventKeys[event?.source];
+                if (key && typeof event.timestamp === 'string' && typeof event.kind === 'string')
+                    this._settings.set_string(key, `${event.timestamp}\t${event.kind}`);
+            }
             return result;
         });
         this._eventBridge.start();

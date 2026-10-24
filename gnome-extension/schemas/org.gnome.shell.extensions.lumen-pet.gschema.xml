@@ -27,6 +27,16 @@
       <summary>Sons do Lúmen</summary>
       <description>Se ativado, toca alertas curtos para eventos importantes.</description>
     </key>
+    <key name="last-event-codex-cli" type="s">
+      <default>''</default>
+      <summary>Último evento do Codex CLI</summary>
+      <description>Horário e tipo do último evento recebido, sem dados da tarefa.</description>
+    </key>
+    <key name="last-event-claude-code" type="s">
+      <default>''</default>
+      <summary>Último evento do Claude Code</summary>
+      <description>Horário e tipo do último evento recebido, sem dados da tarefa.</description>
+    </key>
     <key name="position-monitor" type="i">
       <default>0</default>
       <summary>Monitor do Lúmen</summary>
