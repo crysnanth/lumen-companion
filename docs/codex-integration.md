@@ -18,7 +18,7 @@ O mapper descarta `prompt`, `tool_input`, mensagens finais, comandos e caminhos.
 
 Os eventos novos usam `source: "codex_cli"`. A extensão ainda aceita e normaliza `source: "codex"`, usado pela versão anterior do adaptador, para manter compatibilidade com mensagens v1 já produzidas.
 
-O instalador mescla as definições gerenciadas pelo Lúmen em `~/.codex/hooks.json`, atualiza somente as entradas identificadas como `LUMEN_HOOK_ID=codex_cli` e preserva as demais configurações. Cada alteração de um arquivo existente grava primeiro uma cópia exata ao lado dele com o sufixo `.lumen-backup-<data>`. Para habilitar, atualizar ou remover:
+O instalador mescla as definições gerenciadas pelo Lúmen em `~/.codex/hooks.json`, preservando as demais configurações. Ele reconhece tanto entradas com `LUMEN_HOOK_ID=codex_cli` quanto os comandos GJS antigos que apontam diretamente para `integrations/codex/hook-adapter.js`. Assim, `enable` substitui a definição antiga pela atual e `disable` também remove instalações feitas pelo procedimento manual anterior. Cada alteração de um arquivo existente grava primeiro uma cópia exata ao lado dele com o sufixo `.lumen-backup-<data>`. Para habilitar, atualizar ou remover:
 
 ```bash
 gjs -m integrations/manage-hooks.js enable codex_cli

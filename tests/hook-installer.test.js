@@ -92,6 +92,59 @@ assert(claude.hooks.Notification[0].matcher === 'third-party-matcher'
 assert(Array.isArray(claude.hooks.SomeEmptyEvent) && claude.hooks.SomeEmptyEvent.length === 0,
     'Claude uninstall preserves preexisting empty third-party hook events');
 
+const legacyCodexPath = GLib.build_filenamev([home, '.codex', 'legacy-hooks.json']);
+const legacyCodexAdapter = GLib.build_filenamev([projectRoot, 'integrations', 'codex', 'hook-adapter.js']);
+write(legacyCodexPath, JSON.stringify({hooks: {UserPromptSubmit: [{hooks: [
+    {type: 'command', command: `/usr/bin/gjs -m '${legacyCodexAdapter}'`},
+    {type: 'command', command: 'other-agent-hook'},
+]}]}}));
+const legacyCodexInstaller = createHookInstaller({home, projectRoot, gjsPath: '/usr/bin/gjs', configPaths: {codex_cli: legacyCodexPath}});
+assert(legacyCodexInstaller.enable('codex_cli').changed, 'enable migrates an existing unmarked Codex hook');
+let legacyCodex = JSON.parse(read(legacyCodexPath));
+const codexActions = legacyCodex.hooks.UserPromptSubmit.flatMap(group => group.hooks);
+assert(codexActions.filter(action => action.command.startsWith('LUMEN_HOOK_ID=codex_cli ')).length === 1,
+    'Codex migration leaves exactly one current managed hook');
+assert(!codexActions.some(action => !action.command.startsWith('LUMEN_HOOK_ID=codex_cli ')
+    && action.command.includes('/integrations/codex/hook-adapter.js')),
+    'Codex migration removes the recognized legacy adapter invocation');
+assert(codexActions.some(action => action.command === 'other-agent-hook'), 'Codex migration retains third-party actions');
+legacyCodexInstaller.disable('codex_cli');
+legacyCodex = JSON.parse(read(legacyCodexPath));
+assert(legacyCodex.hooks.UserPromptSubmit.length === 1
+    && legacyCodex.hooks.UserPromptSubmit[0].hooks[0].command === 'other-agent-hook',
+'Codex disable removes migrated hooks and preserves third-party actions');
+
+const legacyClaudePath = GLib.build_filenamev([home, '.claude', 'legacy-settings.json']);
+const legacyClaudeAdapter = GLib.build_filenamev([projectRoot, 'integrations', 'claude-code', 'hook-adapter.js']);
+const legacyClaudeOriginal = JSON.stringify({hooks: {
+    Notification: [{matcher: 'permission_prompt', hooks: [{type: 'command', command: `/usr/bin/gjs -m ${legacyClaudeAdapter}`}]}],
+    SomeEmptyEvent: [],
+}});
+write(legacyClaudePath, legacyClaudeOriginal);
+const legacyClaudeInstaller = createHookInstaller({home, projectRoot, gjsPath: '/usr/bin/gjs', configPaths: {claude_code: legacyClaudePath}});
+assert(legacyClaudeInstaller.disable('claude_code').changed, 'disable recognizes an existing unmarked Claude hook');
+const legacyClaude = JSON.parse(read(legacyClaudePath));
+assert(!legacyClaude.hooks.Notification, 'Claude disable removes the legacy matcher group');
+assert(Array.isArray(legacyClaude.hooks.SomeEmptyEvent) && legacyClaude.hooks.SomeEmptyEvent.length === 0,
+    'Claude legacy removal preserves unrelated empty hook events');
+
+const legacyClaudeUpgradePath = GLib.build_filenamev([home, '.claude', 'legacy-upgrade-settings.json']);
+write(legacyClaudeUpgradePath, JSON.stringify({hooks: {Notification: [{
+    matcher: 'permission_prompt',
+    hooks: [{type: 'command', command: `/usr/bin/gjs -m '${legacyClaudeAdapter}'`}],
+}]}}));
+const legacyClaudeUpgrade = createHookInstaller({home, projectRoot, gjsPath: '/usr/bin/gjs',
+    configPaths: {claude_code: legacyClaudeUpgradePath}});
+assert(legacyClaudeUpgrade.enable('claude_code').changed, 'Claude enable migrates an existing unmarked hook');
+let migratedClaude = JSON.parse(read(legacyClaudeUpgradePath));
+assert(migratedClaude.hooks.Notification.length === 1
+    && migratedClaude.hooks.Notification[0].hooks[0].command.startsWith('LUMEN_HOOK_ID=claude_code '),
+'Claude migration replaces the legacy command without duplicating the event');
+assert(!legacyClaudeUpgrade.enable('claude_code').changed, 'Claude migration remains idempotent');
+legacyClaudeUpgrade.disable('claude_code');
+migratedClaude = JSON.parse(read(legacyClaudeUpgradePath));
+assert(!migratedClaude.hooks.Notification, 'Claude disable removes the migrated managed hook');
+
 const codexDisable = installer.disable('codex_cli');
 assert(codexDisable.changed && codexDisable.backupPath, 'uninstall backs up the current config');
 codex = JSON.parse(read(codexPath));

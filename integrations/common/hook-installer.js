@@ -83,11 +83,26 @@ function managedPrefix(id) {
     return `LUMEN_HOOK_ID=${id} `;
 }
 
-function isManagedAction(action, id) {
-    return isObject(action) && typeof action.command === 'string' && action.command.startsWith(managedPrefix(id));
+function isLegacyLumenCommand(command, integration) {
+    // Before the installer added ownership markers, the published hook fragments
+    // invoked these dedicated adapter modules directly through GJS.
+    const invocation = command.match(/(?:^|\s)(?:'([^']+)'|"([^"]+)"|([^\s]+))\s+-m\s+(?:'([^']+)'|"([^"]+)"|([^\s]+))(?:\s|$)/);
+    if (!invocation)
+        return false;
+    const executable = invocation[1] ?? invocation[2] ?? invocation[3];
+    const modulePath = invocation[4] ?? invocation[5] ?? invocation[6];
+    const expectedSuffix = `/integrations/${integration.adapter}`;
+    return GLib.path_get_basename(executable) === 'gjs'
+        && (modulePath.endsWith(expectedSuffix) || modulePath === `integrations/${integration.adapter}`);
 }
 
-function removeManagedHooks(config, id) {
+function isManagedAction(action, id, integration) {
+    if (!isObject(action) || typeof action.command !== 'string')
+        return false;
+    return action.command.startsWith(managedPrefix(id)) || isLegacyLumenCommand(action.command, integration);
+}
+
+function removeManagedHooks(config, id, integration) {
     if (!isObject(config.hooks))
         throw new Error('A configuração não contém um objeto "hooks" válido.');
     for (const [event, groups] of Object.entries(config.hooks)) {
@@ -97,7 +112,7 @@ function removeManagedHooks(config, id) {
         config.hooks[event] = groups.flatMap(group => {
             if (!isObject(group) || !Array.isArray(group.hooks))
                 throw new Error(`O grupo de hooks "${event}" não é válido; nenhuma alteração foi gravada.`);
-            const remaining = group.hooks.filter(action => !isManagedAction(action, id));
+            const remaining = group.hooks.filter(action => !isManagedAction(action, id, integration));
             if (remaining.length === group.hooks.length)
                 return [group];
             removedManagedAction = true;
@@ -180,7 +195,7 @@ export function createHookInstaller({
             throw new Error(`A propriedade "hooks" precisa ser um objeto: ${path}`);
 
         const before = JSON.stringify(config);
-        removeManagedHooks(config, id);
+        removeManagedHooks(config, id, integration);
         if (operation === 'enable')
             mergeManagedHooks(config, makeManagedFragment({id, integration, projectRoot, gjsPath}));
         if (JSON.stringify(config) === before)

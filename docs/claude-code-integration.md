@@ -20,7 +20,7 @@ O mapper não lê nem copia prompts, argumentos de ferramentas, mensagens do age
 
 ## Instalação
 
-O arquivo `integrations/claude-code/hooks.json` é um fragmento para `~/.claude/settings.json`. O instalador mescla as definições do Lúmen, gera caminhos absolutos para este checkout e preserva outras configurações e hooks. Cada alteração de um arquivo existente grava antes uma cópia exata ao lado dele com o sufixo `.lumen-backup-<data>`. Para habilitar, atualizar ou remover:
+O arquivo `integrations/claude-code/hooks.json` é um fragmento para `~/.claude/settings.json`. O instalador mescla as definições do Lúmen, gera caminhos absolutos para este checkout e preserva outras configurações e hooks. Também reconhece comandos GJS antigos que apontam diretamente para `integrations/claude-code/hook-adapter.js`: `enable` os substitui pelas entradas atuais e `disable` os remove. Cada alteração de um arquivo existente grava antes uma cópia exata ao lado dele com o sufixo `.lumen-backup-<data>`. Para habilitar, atualizar ou remover:
 
 ```bash
 gjs -m integrations/manage-hooks.js enable claude_code
