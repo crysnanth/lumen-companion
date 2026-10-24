@@ -93,18 +93,19 @@ function removeManagedHooks(config, id) {
     for (const [event, groups] of Object.entries(config.hooks)) {
         if (!Array.isArray(groups))
             throw new Error(`A lista de hooks "${event}" não é válida; nenhuma alteração foi gravada.`);
+        let removedManagedAction = false;
         config.hooks[event] = groups.flatMap(group => {
             if (!isObject(group) || !Array.isArray(group.hooks))
                 throw new Error(`O grupo de hooks "${event}" não é válido; nenhuma alteração foi gravada.`);
             const remaining = group.hooks.filter(action => !isManagedAction(action, id));
             if (remaining.length === group.hooks.length)
                 return [group];
+            removedManagedAction = true;
             if (remaining.length > 0)
                 return [{...group, hooks: remaining}];
-            const otherFields = Object.keys(group).filter(key => key !== 'hooks');
-            return otherFields.length > 0 ? [{...group, hooks: []}] : [];
+            return [];
         });
-        if (config.hooks[event].length === 0)
+        if (removedManagedAction && config.hooks[event].length === 0)
             delete config.hooks[event];
     }
 }

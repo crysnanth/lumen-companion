@@ -60,12 +60,37 @@ assert(read(codexPath) === codexAfterFirstInstall, 'repeated install leaves iden
 
 write(claudePath, JSON.stringify({model: 'keep-model', hooks: {
     UserPromptSubmit: [{hooks: [{type: 'command', command: 'claude-third-party'}]}],
+    Notification: [{matcher: 'third-party-matcher', hooks: [
+        {type: 'command', command: 'claude-notification-third-party'},
+        {type: 'command', command: 'LUMEN_HOOK_ID=claude_code stale-managed-hook'},
+    ]}],
+    SomeEmptyEvent: [],
 }, permissions: {allow: ['Bash']}}));
 const claudeInstall = installer.enable('claude_code');
 let claude = JSON.parse(read(claudePath));
 assert(claude.model === 'keep-model' && claude.permissions.allow[0] === 'Bash', 'Claude settings survive merge');
 assert(claude.hooks.UserPromptSubmit.length === 2, 'Claude hooks merge with existing hooks');
-assert(claude.hooks.Notification[0].hooks[0].command.includes('LUMEN_HOOK_ID=claude_code'), 'Claude hooks are marked as Lúmen-owned');
+assert(claude.hooks.Notification.length === 2, 'install retains a mixed third-party group and adds one managed matcher group');
+assert(claude.hooks.Notification[0].hooks.length === 1
+    && claude.hooks.Notification[0].hooks[0].command === 'claude-notification-third-party',
+'updating a mixed group removes only the stale managed action');
+assert(claude.hooks.Notification[1].hooks[0].command.includes('LUMEN_HOOK_ID=claude_code'), 'Claude hooks are marked as Lúmen-owned');
+assert(Array.isArray(claude.hooks.SomeEmptyEvent) && claude.hooks.SomeEmptyEvent.length === 0,
+    'install preserves preexisting empty third-party hook events');
+const claudeAfterFirstInstall = read(claudePath);
+const secondClaudeInstall = installer.enable('claude_code');
+assert(!secondClaudeInstall.changed && !secondClaudeInstall.backupPath, 'repeated Claude install is idempotent');
+assert(read(claudePath) === claudeAfterFirstInstall, 'repeated Claude install leaves identical bytes and no empty matcher groups');
+
+const claudeDisable = installer.disable('claude_code');
+assert(claudeDisable.changed && claudeDisable.backupPath, 'Claude uninstall backs up its changed config');
+claude = JSON.parse(read(claudePath));
+assert(claude.hooks.Notification.length === 1, 'Claude uninstall removes the managed matcher group entirely');
+assert(claude.hooks.Notification[0].matcher === 'third-party-matcher'
+    && claude.hooks.Notification[0].hooks[0].command === 'claude-notification-third-party',
+'Claude uninstall preserves mixed third-party groups and their matcher');
+assert(Array.isArray(claude.hooks.SomeEmptyEvent) && claude.hooks.SomeEmptyEvent.length === 0,
+    'Claude uninstall preserves preexisting empty third-party hook events');
 
 const codexDisable = installer.disable('codex_cli');
 assert(codexDisable.changed && codexDisable.backupPath, 'uninstall backs up the current config');
@@ -74,8 +99,16 @@ assert(!codex.hooks.UserPromptSubmit.some(group => group.hooks.some(action => ac
     'uninstall removes Lúmen Codex hooks');
 assert(codex.hooks.UserPromptSubmit[0].hooks[0].command === 'third-party-codex-hook', 'uninstall preserves third-party Codex hooks');
 assert(codex.hooks.ThirdPartyEvent[0].hooks[0].command === 'keep-me', 'uninstall preserves unrelated event groups');
-assert(JSON.parse(read(claudePath)).hooks.Notification.length > 0, 'uninstalling Codex leaves Claude hooks intact');
 assert(Gio.File.new_for_path(codexPath).query_exists(null), 'uninstall never deletes the user config file');
+
+const noManagedPath = GLib.build_filenamev([home, '.codex', 'no-managed-hooks.json']);
+const noManagedOriginal = JSON.stringify({hooks: {SomeEmptyEvent: [], ThirdParty: [{hooks: [{type: 'command', command: 'keep'}]}]}});
+write(noManagedPath, noManagedOriginal);
+const noManagedInstaller = createHookInstaller({home, projectRoot, gjsPath: '/usr/bin/gjs', configPaths: {codex_cli: noManagedPath}});
+const noManagedDisable = noManagedInstaller.disable('codex_cli');
+assert(!noManagedDisable.changed && !noManagedDisable.backupPath,
+    'disabling without managed hooks is a no-op even when third-party event arrays are empty');
+assert(read(noManagedPath) === noManagedOriginal, 'no-op disable preserves the exact config bytes');
 
 const invalidPath = GLib.build_filenamev([home, '.codex', 'invalid.json']);
 const invalidRaw = '{invalid json';
