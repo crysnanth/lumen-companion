@@ -13,7 +13,7 @@ const store = createIntegrationConfigStore({path});
 const initial = store.read();
 assert(!initial.exists && initial.valid, 'missing config returns defaults');
 assert(initial.config.integrations.agents.codex_cli.enabled, 'Codex is enabled by default');
-assert(!initial.config.integrations.agents.claude_code.enabled, 'planned agents are disabled by default');
+assert(initial.config.integrations.agents.claude_code.enabled, 'available Claude Code integration is enabled by default');
 
 const written = store.update(config => {
     config.integrations.agents.claude_code.enabled = true;
@@ -39,7 +39,7 @@ assert(partial.integrations.agents.codex_cli.vendor_field === 'preserve' && part
 assert(partial.extensions.future_option === 42, 'partial object updates retain unknown top-level fields');
 
 const invalid = normalizeIntegrationConfig({version: 1, integrations: {
-    agents: {codex_cli: {enabled: 'yes', plugin_field: 'kept'}},
+    agents: {codex_cli: {enabled: 'yes', plugin_field: 'kept'}, claude_code: {enabled: false}},
     tracking: {mode: 'preferred', preferred_agent: 'claude_code'},
     notifications: {approval_required: 'yes'},
 }});

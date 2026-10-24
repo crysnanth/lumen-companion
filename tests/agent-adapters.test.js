@@ -11,7 +11,7 @@ function assert(condition, message) {
 assert(listAgentAdapters() === AGENT_ADAPTERS, 'catalog exposes its immutable adapter list');
 assert(getAgentAdapter('codex_cli')?.name === 'Codex CLI', 'Codex adapter is discoverable by stable id');
 assert(getAgentAdapter('claude_code')?.name === 'Claude Code', 'Claude adapter is discoverable by stable id');
-assert(getAgentAdapter('claude_code')?.integrationStatus === 'planned', 'Claude is registered but not installed as an integration');
+assert(getAgentAdapter('claude_code')?.integrationStatus === 'available', 'Claude is registered as an available integration');
 assert(getAgentAdapter('unknown') === null, 'unknown adapter lookup is explicit');
 
 const claude = getAgentAdapter('claude_code');
