@@ -4,6 +4,7 @@ import {EventBridge} from './lib/event-bridge.js';
 import {PetController} from './lib/pet-controller.js';
 import {PetView} from './lib/pet-view.js';
 import {SoundController} from './lib/sound-controller.js';
+import {isIntegrationEventEnabled} from './lib/integration-config.js';
 
 const DISPLAY_SIZES = {
     small: 96,
@@ -34,6 +35,8 @@ export default class LumenPetExtension extends Extension {
         this._sounds.setEnabled(this._settings.get_boolean('sounds-enabled'));
         this._controller = new PetController(this._pet);
         this._eventBridge = new EventBridge(event => {
+            if (!isIntegrationEventEnabled(event?.source))
+                return {accepted: false, state: 'idle', reason: 'integration disabled or not preferred'};
             const result = this._controller.handleEvent(event);
             if (result.accepted)
                 this._sounds.play(result.state);
