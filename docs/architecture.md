@@ -14,6 +14,7 @@ O catálogo explícito em `integrations/catalog.js` registra adaptadores sem dep
 
 - `integrations/catalog.js`: registro consultável de adaptadores Codex CLI (disponível) e Claude Code (planejado; sem hook executável instalado).
 - `integrations/common/agent-adapter.js`: contrato v1 compartilhado; capacidades são observações, e ações de controle são metadados separados.
+- `integrations/common/config-store.js`: preferências portáteis de integração em `$XDG_CONFIG_HOME/lumen/config.json` (ou `~/.config/lumen/config.json`), com versão de formato, defaults, validação, preservação de campos futuros e substituição atômica.
 - `integrations/codex/` e `integrations/claude-code/`: mapeiam hooks de cada agente para eventos do Lúmen.
 - `gnome-extension/lib/event-bridge.js`: possui o nome D-Bus enquanto a extensão está ativa; aceita apenas notificações JSON limitadas a 4096 bytes.
 - `state-machine.js`: valida campos, limita texto, ordena estados e mantém limites para tarefas e deduplicação.
@@ -31,6 +32,12 @@ Solicitação de permissão tem prioridade sobre pergunta, falha, execução e r
 O pet compartilha o processo do GNOME Shell. Em repouso, a animação atual usa um intervalo longo entre piscadas; estados ativos atualizam alguns quadros por segundo, sem animação a 60 FPS. Sprites têm quatro quadros por estado e são carregados na criação da interface.
 
 O D-Bus é local à sessão e só transporta dados de notificação. Mensagens são limitadas, texto de prompt e conteúdo de ferramentas são descartados pelo adaptador do Codex, e o Lúmen não executa comandos recebidos.
+
+## Preferências e configuração
+
+Preferências portáteis de integração ficam no JSON do usuário: agentes habilitados, modo de acompanhamento (`auto` ou `preferred`), agente preferido e notificações por tipo. O formato atual é a versão 1. Na primeira execução, Codex CLI fica habilitado e adaptadores planejados ficam desabilitados; todas as notificações começam ligadas. Campos desconhecidos são mantidos para permitir que versões futuras ou extensões adicionem opções sem apagá-las. Tipos conhecidos com valores inválidos voltam ao default. Um JSON corrompido produz defaults em memória, permanece intacto no disco e impede gravação até que seja reparado, evitando perda silenciosa.
+
+As configurações específicas do GNOME continuam no GSettings da extensão: tamanho/posição do personagem, animações, sons e ocultação em tela cheia. O JSON compartilhado não contém tokens, senhas ou prompts. `config-store.js` recebe o caminho como opção para permitir testes e futuros caminhos de plataforma sem acoplar a lógica de preferências ao GNOME.
 
 ## Adicionar um adaptador
 
