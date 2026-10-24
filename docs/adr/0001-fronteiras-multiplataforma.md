@@ -8,7 +8,7 @@
 
 O Lúmen é atualmente uma extensão GJS para GNOME Shell, validada em Debian 13, GNOME 48.7 e Wayland. A extensão vive no processo do GNOME Shell e usa atores Clutter/St, ciclo de vida da extensão, preferências GSettings e o barramento D-Bus da sessão. Esses serviços e APIs definem a apresentação e a integração Linux atuais; não são interfaces portáteis de janela.
 
-Ao mesmo tempo, adaptadores de agentes, o contrato de eventos v1, a máquina de estados e a configuração de integrações já têm fronteiras que podem ser reutilizadas por outra apresentação. Esta decisão registra essas fronteiras e as obrigações de compatibilidade para uma implementação futura.
+Ao mesmo tempo, adaptadores de agentes, o contrato de eventos v1, a máquina de estados e a configuração de integrações já têm fronteiras conceituais que podem orientar outra apresentação. A separação física dos módulos ainda é parcial: há lógica pura misturada com I/O do GJS/Gio, e alguns módulos chamados de comuns dependem da extensão GNOME. Esta decisão registra o que pode ser reutilizado diretamente e o que exige extração ou reimplementação.
 
 ## Decisão
 
@@ -18,16 +18,23 @@ Rust com SDL3 é uma opção a avaliar para uma UI nativa independente em Window
 
 ## Fronteiras e reaproveitamento
 
-| Área | Reaproveitável | Específico de plataforma |
-|---|---|---|
-| Eventos e adaptadores | Esquema v1, tipos, limites, validação, normalização de fontes, mapeadores Codex/Claude e metadados de capacidades. | Captura de eventos oferecida por cada agente e mecanismo de ativação dos hooks no sistema. |
-| Estado e políticas | Identidade `(source, session_id, task_id)`, ordenação, deduplicação, prioridades, estados persistentes e seleção de tarefas. | Agendamento/timers e integração de ciclo de vida com o host escolhido. |
-| Transporte | Interface do emissor `sendEventJson(eventJson)`, entrega best effort e limite de 4096 bytes UTF-8. | D-Bus da sessão no Linux; mecanismo futuro de IPC ou chamada local em outras plataformas. |
-| Configuração | Preferências de integração em JSON versionado, defaults, validação, preservação de campos desconhecidos e atualização atômica. | Caminhos de configuração, diretórios de dados, permissões, migração e registro de inicialização por sistema. |
-| Assets e apresentação | Sprites, sons e semântica visual dos estados podem ser referências compartilhadas. | Carregamento de assets, escalonamento pixel-art, janelas/atores, interação, áudio e comportamento com monitores e DPI. |
-| Empacotamento | Metadados e processo de release podem seguir convenções comuns quando fizer sentido. | Extensão GNOME e schemas no Linux; instalador, assinatura, permissões, atualizador e desinstalador próprios em cada sistema-alvo. |
+| Área | Reuso sem mudança no runtime JS | Reuso após refatoração ou reimplementação | Específico de plataforma |
+|---|---|---|---|
+| Eventos e adaptadores | Contrato v1, limites, validação do payload, `event-transport.js`, `agent-adapter.js`, mapeadores e fixtures não dependentes de APIs GJS, quando executados num runtime JS compatível. | Em Rust ou outro runtime sem interoperabilidade JS, reimplementar contrato e mapeadores com os mesmos vetores de teste. Captura de eventos e instalação/ativação de hooks precisam de integração por sistema. | Mecanismo de hooks e permissões oferecidas por cada sistema/agente. |
+| Estado e políticas | As regras JS puras de identidade `(source, session_id, task_id)`, ordenação, deduplicação, prioridades, persistência e seleção podem ser reutilizadas sem mudança lógica. | `gnome-extension/lib/state-machine.js` está sob a árvore GNOME apesar de não depender da UI; mover o módulo para uma localização compartilhada. Em outro runtime, reimplementar as regras e validar snapshots equivalentes. | Agendamento/timers e ciclo de vida do host escolhido. |
+| Transporte | A interface `sendEventJson(eventJson)`, entrega best effort e limite de 4096 bytes UTF-8. | O backend D-Bus pode servir de referência comportamental, mas um processo fora do GNOME precisa de outro backend e de nova composição. | D-Bus da sessão no Linux; mecanismo futuro de IPC ou chamada local em outras plataformas. |
+| Configuração | Nenhum módulo completo de configuração pode ser importado fora do GJS sem mudança. | `config-store.js` importa Gio/GLib e mistura normalização com caminhos e I/O; extrair schema, defaults e validação pura e implementar persistência/adaptador de caminhos por plataforma. Em outro runtime, portar/testar essas regras. A configuração GSettings do GNOME permanece própria do host. | Caminhos, diretórios, permissões, migração e registro de inicialização por sistema. |
+| Instalação de hooks | Sem módulo integral reutilizável hoje. | `hook-installer.js` usa Gio/GLib e depende de `gnome-extension/lib/integration-config.js`, que também importa essas APIs. Separar regras de transformação/validação JSON do I/O e substituir a dependência GNOME por uma interface neutra ou adaptador do host. | Acesso seguro a arquivos de configuração do agente, backup, permissões e ativação. |
+| Assets e apresentação | Arquivos de sprites e sons podem ser reutilizados como assets; a semântica visual dos estados é referência comum. | Carregamento, renderização, input e escalonamento precisam de implementação para a toolkit escolhida. | Janelas/atores, interação, áudio, monitores e DPI. |
+| Empacotamento | Metadados e etapas de release podem seguir convenções comuns quando fizer sentido. | Runtime e dependências devem ser reavaliados conforme o toolkit escolhido. | Extensão GNOME e schemas no Linux; instalador, assinatura, permissões, atualização e remoção em cada sistema-alvo. |
 
-Os módulos comuns não devem importar APIs GNOME, Gio ou SDL. O ponto de composição seleciona um transporte e uma apresentação; os adaptadores não conhecem a UI. A configuração do GNOME continua em GSettings, enquanto preferências de integrações seguem no JSON portátil já existente.
+### Dívida de separação existente
+
+“Módulos comuns não importarem APIs GNOME, Gio ou SDL” é uma restrição-alvo para a futura extração, não uma propriedade atual de toda a pasta `integrations/common/`. “Reuso sem mudança” na tabela significa que o código JS pode continuar igual num runtime JS compatível; uma implementação Rust/SDL3 sem interoperabilidade terá de reimplementar as regras e demonstrar equivalência pelos testes de contrato. `event-transport.js` e `agent-adapter.js` são exemplos independentes de Gio; `config-store.js` importa Gio/GLib, e `hook-installer.js` também importa essas APIs e depende de `gnome-extension/lib/integration-config.js`. A própria `integration-config.js` importa Gio/GLib. A máquina de estados é lógica JS pura, mas ainda está em `gnome-extension/lib/`.
+
+Antes de reutilizar os módulos diretamente em outro runtime, extrair schema, defaults, normalização e validação pura de `config-store.js` e `integration-config.js`; deixar caminhos, persistência e instalação de hooks em adaptadores de plataforma; remover a dependência de `integrations/common/` em direção à extensão GNOME; e mover a máquina de estados para uma camada de domínio compartilhada. Até lá, as regras puras e o contrato são referências portáveis; isso não significa que todos os módulos físicos possam ser importados fora do GJS.
+
+Como direção arquitetural, módulos de domínio compartilhados não devem importar APIs GNOME, Gio ou SDL. O ponto de composição seleciona transporte e apresentação; adaptadores não conhecem a UI. A configuração do GNOME continua em GSettings, enquanto preferências de integrações seguem no JSON portátil já existente.
 
 ## Contratos para transporte/IPC futuro
 
