@@ -10,6 +10,16 @@ const STATE_LABELS = {
     failed: 'Erro',
     sleeping: 'Dormindo',
 };
+const PANEL_STATE_LABELS = {
+    idle: 'Ocioso',
+    working: 'Trabalhando',
+    thinking: 'Pensando',
+    approval_required: 'Permissão',
+    input_required: 'Resposta',
+    completed: 'Concluído',
+    failed: 'Erro',
+    sleeping: 'Dormindo',
+};
 
 const MAX_TASK_TEXT_LENGTH = 30;
 const MAX_SESSION_TEXT_LENGTH = 16;
@@ -26,13 +36,16 @@ function agentName(source) {
 
 function shorten(value, limit) {
     const characters = Array.from(value ?? '');
-    return characters.length > limit
-        ? `${characters.slice(0, limit).join('')}…`
-        : characters.join('');
+    if (characters.length <= limit)
+        return characters.join('');
+    if (limit <= 0)
+        return '';
+    return `${characters.slice(0, limit - 1).join('')}…`;
 }
 
 export class PetPanel {
     constructor(width) {
+        this._width = width;
         this.actor = new St.Label({
             text: '',
             width,
@@ -64,10 +77,14 @@ export class PetPanel {
             lines.push('Nenhuma tarefa ativa');
         } else {
             lines.push(`${tasks.length} tarefa(s) · destaque: ${STATE_LABELS[state] ?? 'Desconhecido'}`);
+            const maxLineCharacters = Math.max(18, Math.floor((this._width - 20) / 6));
             for (const task of tasks.slice(0, MAX_VISIBLE_TASKS)) {
                 const description = task.message || task.title || 'Atividade em andamento';
-                lines.push(`${agentName(task.source)} · ${shorten(task.session_id, MAX_SESSION_TEXT_LENGTH)}`);
-                lines.push(`${STATE_LABELS[task.state] ?? 'Desconhecido'} · ${shorten(description, MAX_TASK_TEXT_LENGTH)}`);
+                const agentSession = `${agentName(task.source)} · ${shorten(task.session_id, MAX_SESSION_TEXT_LENGTH)}`;
+                lines.push(shorten(agentSession, maxLineCharacters));
+                const taskState = PANEL_STATE_LABELS[task.state] ?? 'Desconhecido';
+                const descriptionLimit = Math.max(0, maxLineCharacters - taskState.length - 2);
+                lines.push(`${taskState}: ${shorten(description, Math.min(MAX_TASK_TEXT_LENGTH, descriptionLimit))}`);
             }
             if (tasks.length > MAX_VISIBLE_TASKS)
                 lines.push(`… e mais ${tasks.length - MAX_VISIBLE_TASKS}`);
@@ -78,6 +95,7 @@ export class PetPanel {
     }
 
     setWidth(width) {
+        this._width = width;
         this.actor.set_width(width);
     }
 

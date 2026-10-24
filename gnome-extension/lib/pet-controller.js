@@ -25,11 +25,16 @@ export class PetController {
             GLib.PRIORITY_DEFAULT,
             STALE_CHECK_INTERVAL_SECONDS,
             () => {
-                const result = this._stateMachine.expireStale();
-                if (result.changed)
-                    this._render(result);
+                this.refreshStaleTasks();
                 return GLib.SOURCE_CONTINUE;
             });
+    }
+
+    refreshStaleTasks(now) {
+        const result = this._stateMachine.expireStale(now);
+        if (result.changed)
+            this._render(result);
+        return result;
     }
 
     destroy() {

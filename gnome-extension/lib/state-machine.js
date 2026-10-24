@@ -72,7 +72,8 @@ export function validateEvent(event) {
 }
 
 export class PetStateMachine {
-    constructor() {
+    constructor(clock = () => Date.now()) {
+        this._clock = clock;
         this._tasks = new Map();
         this._lastTimestampByTask = new Map();
         this._dedupeKeys = new Set();
@@ -134,7 +135,7 @@ export class PetStateMachine {
                 title: cleanText(event.title, MAX_TITLE_LENGTH) || DEFAULT_TITLES[event.kind] || '',
                 message: cleanText(event.message, MAX_MESSAGE_LENGTH),
                 timestamp,
-                receivedAt: Date.now(),
+                receivedAt: this._clock(),
             });
         }
 
@@ -197,7 +198,6 @@ export class PetStateMachine {
     }
 
     getSnapshot() {
-        this._pruneStaleTasks(Date.now());
         let selected = null;
         const tasks = [...this._tasks.values()]
             .sort((left, right) => right.priority - left.priority || right.timestamp - left.timestamp);
@@ -240,7 +240,7 @@ export class PetStateMachine {
     }
 
     /** Drop old failures so a missed terminal hook cannot leave a permanent alert. */
-    expireStale(now = Date.now()) {
+    expireStale(now = this._clock()) {
         const previousSize = this._tasks.size;
         this._pruneStaleTasks(now);
         return {
