@@ -51,6 +51,16 @@ assert(deniedApprovalMachine.getSnapshot().state === 'approval_required',
 result = deniedApprovalMachine.handleEvent(event('task_interrupted', 'task-denied', 2));
 assert(result.accepted && result.state === 'idle', 'interruption clears a denied pending approval');
 
+const failedAfterApprovalMachine = new PetStateMachine();
+failedAfterApprovalMachine.handleEvent(event('approval_required', 'task-fails-after-approval', 1));
+result = failedAfterApprovalMachine.handleEvent(event('task_failed', 'task-fails-after-approval', 2));
+assert(result.accepted && result.state === 'failed', 'a definitive failure replaces a pending approval in the same task');
+
+const failedAfterInputMachine = new PetStateMachine();
+failedAfterInputMachine.handleEvent(event('input_required', 'task-fails-after-input', 1));
+result = failedAfterInputMachine.handleEvent(event('task_failed', 'task-fails-after-input', 2));
+assert(result.accepted && result.state === 'failed', 'a definitive failure replaces a pending input request in the same task');
+
 machine.handleEvent(event('task_started', 'task-work', 4));
 machine.handleEvent(event('task_failed', 'task-failure', 5));
 assert(machine.getSnapshot().state === 'failed', 'failure outranks active work');

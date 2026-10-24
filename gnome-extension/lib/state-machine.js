@@ -8,6 +8,7 @@ const TASK_STATES = {
 };
 
 const TERMINAL_EVENTS = new Set(['task_completed', 'task_interrupted', 'idle']);
+const GENERIC_ACTIVITY_EVENTS = new Set(['task_started', 'working', 'thinking']);
 const EVENT_KINDS = new Set([...Object.keys(TASK_STATES), ...TERMINAL_EVENTS]);
 const MAX_TITLE_LENGTH = 80;
 const MAX_MESSAGE_LENGTH = 200;
@@ -105,11 +106,11 @@ export class PetStateMachine {
         this._rememberTaskTimestamp(key, timestamp);
 
         const currentTask = this._tasks.get(key);
-        const nextDefinition = TASK_STATES[event.kind];
         // Progress hooks do not carry a correlation key shared with
         // PermissionRequest. Keep a persistent prompt visible until a terminal
-        // event confirms that this task has ended.
-        if (currentTask?.persistent && nextDefinition && nextDefinition.priority < currentTask.priority)
+        // event confirms that this task has ended. Semantic outcomes such as
+        // task_failed still replace the pending state for this task.
+        if (currentTask?.persistent && GENERIC_ACTIVITY_EVENTS.has(event.kind))
             return {accepted: true, ...this.getSnapshot()};
 
         if (TERMINAL_EVENTS.has(event.kind))
