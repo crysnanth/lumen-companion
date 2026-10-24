@@ -28,7 +28,7 @@ Em Wayland, saia da sessão GNOME e entre novamente para recarregar os módulos.
 gnome-extensions prefs lumen-pet@meu-pet.local
 ```
 
-As opções incluem tamanho, animações, sons (ligados por padrão) e ocultação em tela cheia (desligada por padrão).
+As opções incluem tamanho, animações, sons (ligados por padrão), ocultação em tela cheia (desligada por padrão) e a página **Comportamento**. Ações espontâneas começam habilitadas com pausas longas; caminhada automática começa desabilitada. Movimento reduzido impede caminhada e mantém poses estáticas. Conversas locais são opcionais e não usam rede ou IA.
 
 ## Testar eventos
 
@@ -80,4 +80,5 @@ Isso remove a extensão. Os dados de posição e preferências do GNOME podem pe
 - [Integração Codex CLI](docs/codex-integration.md)
 - [Integração Claude Code](docs/claude-code-integration.md)
 - [Diagnóstico](docs/troubleshooting.md)
+- [Comportamentos e validação manual](docs/development.md#smoke-test-do-companion-autônomo)
 - [Relatórios técnicos](docs/reports/)

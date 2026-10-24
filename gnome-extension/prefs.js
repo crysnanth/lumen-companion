@@ -181,7 +181,103 @@ export default class LumenPetPreferences extends ExtensionPreferences {
         settings.bind('sounds-enabled', soundsRow, 'active', Gio.SettingsBindFlags.DEFAULT);
         group.add(soundsRow);
 
+        this._addBehaviorPage(window, settings);
+
         this._addIntegrationsPage(window);
+    }
+
+    _addBehaviorPage(window, settings) {
+        const page = new Adw.PreferencesPage({
+            title: 'Comportamento',
+            icon_name: 'face-smile-symbolic',
+        });
+        window.add(page);
+
+        const movement = new Adw.PreferencesGroup({
+            title: 'Movimento e ações',
+            description: 'As ações autônomas são suspensas enquanto um agente aguarda sua atenção ou está trabalhando.',
+        });
+        page.add(movement);
+
+        const behaviorsRow = new Adw.SwitchRow({
+            title: 'Ações espontâneas',
+            subtitle: 'Olhar ao redor, sentar, alongar, acenar e cochilar com pausas longas.',
+        });
+        settings.bind('autonomous-behaviors-enabled', behaviorsRow, 'active', Gio.SettingsBindFlags.DEFAULT);
+        movement.add(behaviorsRow);
+
+        const roamingRow = new Adw.SwitchRow({
+            title: 'Caminhar automaticamente',
+            subtitle: 'Desativado por padrão. O Lúmen muda de direção nas bordas do monitor.',
+        });
+        settings.bind('roaming-enabled', roamingRow, 'active', Gio.SettingsBindFlags.DEFAULT);
+        movement.add(roamingRow);
+
+        const allMonitorsRow = new Adw.SwitchRow({
+            title: 'Explorar todos os monitores',
+            subtitle: 'Permite cruzar para monitores adjacentes; desative para permanecer no atual.',
+        });
+        settings.bind('roam-all-monitors', allMonitorsRow, 'active', Gio.SettingsBindFlags.DEFAULT);
+        movement.add(allMonitorsRow);
+
+        const speedRow = new Adw.ComboRow({
+            title: 'Velocidade da caminhada',
+            model: Gtk.StringList.new(['Lenta', 'Normal', 'Rápida']),
+        });
+        const speedValues = [70, 115, 175];
+        const currentSpeed = settings.get_int('walk-speed');
+        speedRow.selected = speedValues.reduce((best, value, index) =>
+            Math.abs(value - currentSpeed) < Math.abs(speedValues[best] - currentSpeed) ? index : best, 0);
+        speedRow.connect('notify::selected', () => {
+            if (speedRow.selected < speedValues.length)
+                settings.set_int('walk-speed', speedValues[speedRow.selected]);
+        });
+        movement.add(speedRow);
+
+        const frequencyRow = new Adw.ComboRow({
+            title: 'Frequência de ações espontâneas',
+            model: Gtk.StringList.new(['Baixa', 'Padrão', 'Alta']),
+        });
+        frequencyRow.selected = Math.min(2, Math.max(0, settings.get_int('behavior-frequency')));
+        frequencyRow.connect('notify::selected', () => {
+            if (frequencyRow.selected <= 2)
+                settings.set_int('behavior-frequency', frequencyRow.selected);
+        });
+        movement.add(frequencyRow);
+
+        const quietRow = new Adw.SwitchRow({
+            title: 'Modo discreto',
+            subtitle: 'Reduz as ações espontâneas e pausa caminhadas.',
+        });
+        settings.bind('quiet-mode', quietRow, 'active', Gio.SettingsBindFlags.DEFAULT);
+        movement.add(quietRow);
+
+        const interaction = new Adw.PreferencesGroup({
+            title: 'Interações',
+            description: 'Falas e reações são locais; o Lúmen não envia respostas nem comandos aos agentes.',
+        });
+        page.add(interaction);
+
+        const mouseRow = new Adw.SwitchRow({
+            title: 'Interações com o mouse',
+            subtitle: 'Reações ao hover, clique e arraste; a área fora do mascote continua click-through.',
+        });
+        settings.bind('mouse-interactions-enabled', mouseRow, 'active', Gio.SettingsBindFlags.DEFAULT);
+        interaction.add(mouseRow);
+
+        const dialogueRow = new Adw.SwitchRow({
+            title: 'Conversas locais espontâneas',
+            subtitle: 'Mostra um convite curto ao clicar; nenhuma rede ou IA é usada.',
+        });
+        settings.bind('spontaneous-dialogue-enabled', dialogueRow, 'active', Gio.SettingsBindFlags.DEFAULT);
+        interaction.add(dialogueRow);
+
+        const reducedMotionRow = new Adw.SwitchRow({
+            title: 'Reduzir movimentos',
+            subtitle: 'Impede caminhadas e mantém as poses autônomas em um quadro estático.',
+        });
+        settings.bind('reduced-motion', reducedMotionRow, 'active', Gio.SettingsBindFlags.DEFAULT);
+        interaction.add(reducedMotionRow);
     }
 
     _addIntegrationsPage(window) {

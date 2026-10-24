@@ -22,6 +22,10 @@ O catálogo explícito em `integrations/catalog.js` registra adaptadores sem dep
 - `state-machine.js`: valida campos, limita texto, ordena estados e mantém limites para tarefas e deduplicação.
 - `pet-controller.js`: conecta resultados da máquina de estados à interface.
 - `pet-view.js`: cria atores GNOME, carrega os quadros e controla painel, balões e arraste.
+- `speech-bubble.js`: balão local com texto limitado, escolhas acessíveis e hitbox restrita aos controles.
+- `animation-manifest.js`: metadados de animação com quantidade variável de quadros e fallback por estado.
+- `behavior-controller.js`: seleciona uma ação espontânea de cada vez, com pesos/cooldowns, e cede a prioridade a eventos dos agentes.
+- `autonomous-walker.js` e `monitor-geometry.js`: movimento temporizado somente durante caminhadas, limitado à área útil e à topologia de monitores.
 - `animation-controller.js`: agenda apenas o próximo quadro com um timeout GLib; não usa loop de renderização próprio.
 - `sound-controller.js`: toca alertas locais quando a preferência de som está ligada.
 

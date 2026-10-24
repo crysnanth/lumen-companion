@@ -6,49 +6,17 @@ import * as DND from 'resource:///org/gnome/shell/ui/dnd.js';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
 import {AnimationController} from './animation-controller.js';
+import {ANIMATION_MANIFEST} from './animation-manifest.js';
 import {PetPanel} from './pet-panel.js';
-
-const FRAME_PREFIXES = {
-    idle: 'idle',
-    working: 'working',
-    thinking: 'thinking',
-    approval_required: 'approval-required',
-    input_required: 'input-required',
-    completed: 'completed',
-    failed: 'failed',
-    sleeping: 'sleeping',
-};
-
-const FRAME_COUNT = 4;
+import {SpeechBubble} from './speech-bubble.js';
 const BASE_DISPLAY_SIZE = 128;
 const MESSAGE_TIMEOUT_MS = 5000;
 const SPRITE_Y = 76;
 
-function wrapText(text, maxLineLength, maxLines) {
-    const words = Array.from(text.trim().split(/\s+/));
-    const lines = [];
-    let line = '';
-
-    for (const word of words) {
-        const next = line ? `${line} ${word}` : word;
-        if (next.length <= maxLineLength || line.length === 0)
-            line = next.slice(0, maxLineLength);
-        else {
-            lines.push(line);
-            line = word.slice(0, maxLineLength);
-            if (lines.length === maxLines - 1)
-                break;
-        }
-    }
-
-    if (line && lines.length < maxLines)
-        lines.push(line);
-    return lines;
-}
-
 export class PetView {
-    constructor(extension, onPositionChanged) {
+    constructor(extension, onPositionChanged, onInteraction = null) {
         this._onPositionChanged = onPositionChanged;
+        this._onInteraction = onInteraction;
         this._displaySize = BASE_DISPLAY_SIZE;
         this._viewWidth = BASE_DISPLAY_SIZE * 2;
         this._viewHeight = BASE_DISPLAY_SIZE + 80;
@@ -68,25 +36,13 @@ export class PetView {
         this._visibleFrame = null;
         this._messageTimeoutId = 0;
         this._message = null;
+        this._agentState = 'idle';
+        this._autonomousAction = null;
         this._panel = new PetPanel(this._viewWidth);
-        this._bubble = new St.Label({
-            text: '',
-            style: [
-                'color: #F4F7FB',
-                'background-color: rgba(7, 21, 29, 0.96)',
-                'border: 1px solid #52F5F5',
-                'border-radius: 8px',
-                'padding: 6px 8px',
-                'font-family: sans-serif',
-                'font-size: 12px',
-            ].join('; '),
-            reactive: false,
-            can_focus: false,
-            visible: false,
-        });
-        this._bubble.set_position(0, 0);
-        this._bubble.set_width(this._viewWidth);
-        this.actor.add_child(this._bubble);
+        this._bubble = new SpeechBubble();
+        this._bubble.actor.set_position(0, 0);
+        this._bubble.setWidth(this._viewWidth);
+        this.actor.add_child(this._bubble.actor);
         this.actor.add_child(this._panel.actor);
 
         this.clickTarget = new St.Button({
@@ -94,7 +50,7 @@ export class PetView {
             height: this._clickTargetSize,
             reactive: true,
             can_focus: false,
-            track_hover: false,
+            track_hover: true,
             accessible_name: 'Abrir painel do Lúmen',
             style: 'background-color: transparent; border: none; padding: 0;',
         });
@@ -129,19 +85,46 @@ export class PetView {
             restoreOnSuccess: false,
         });
         const clickAction = new Clutter.ClickAction();
-        clickAction.connect('clicked', () => this.togglePanel());
+        clickAction.connect('clicked', () => {
+            if (this._onInteraction)
+                this._onInteraction('click');
+            else
+                this.togglePanel();
+        });
         this._draggable.addClickAction(clickAction);
-        this._draggable.connect('drag-begin', () => this._startDrag());
-        this._draggable.connect('drag-end', () => this._finishDrag());
-        this._draggable.connect('drag-cancelled', () => this._finishDrag());
+        this._draggable.connect('drag-begin', () => {
+            this._onInteraction?.('drag-begin');
+            this._startDrag();
+        });
+        this._draggable.connect('drag-end', () => {
+            this._finishDrag();
+            const [x, y] = this.actor.get_position();
+            this._onPositionChanged?.(x, y);
+            this._onInteraction?.('drag-end');
+        });
+        this._draggable.connect('drag-cancelled', () => {
+            this._finishDrag();
+            this._onInteraction?.('drag-end');
+        });
+        this.clickTarget.connect('enter-event', () => {
+            this._onInteraction?.('hover');
+            return Clutter.EVENT_PROPAGATE;
+        });
 
-        for (const [state, prefix] of Object.entries(FRAME_PREFIXES)) {
+        for (const animation of ANIMATION_MANIFEST) {
             const frames = [];
-            for (let index = 0; index < FRAME_COUNT; index++) {
-                const frameFile = extension.dir
+            const fallback = ANIMATION_MANIFEST.find(candidate => candidate.id === animation.fallback);
+            for (const fileName of animation.files) {
+                let frameFile = extension.dir
                     .get_child('assets')
                     .get_child('sprites')
-                    .get_child(`${prefix}-${index}.png`);
+                    .get_child(fileName);
+                if (!frameFile.query_exists(null) && fallback?.files[0]) {
+                    frameFile = extension.dir
+                        .get_child('assets')
+                        .get_child('sprites')
+                        .get_child(fallback.files[0]);
+                }
                 const icon = new St.Icon({
                     gicon: new Gio.FileIcon({file: frameFile}),
                     icon_size: this._displaySize,
@@ -154,7 +137,7 @@ export class PetView {
                 this.actor.add_child(icon);
                 frames.push(icon);
             }
-            this._frames.set(state, frames);
+            this._frames.set(animation.id, frames);
         }
 
         this._animation = new AnimationController((state, index) => {
@@ -175,7 +158,7 @@ export class PetView {
         this._spriteX = (this._viewWidth - displaySize) / 2;
         this._clickTargetSize = Math.round(displaySize * 40 / BASE_DISPLAY_SIZE);
         this.actor.set_size(this._viewWidth, this._viewHeight);
-        this._bubble.set_width(this._viewWidth);
+        this._bubble.setWidth(this._viewWidth);
         this._panel.setWidth(this._viewWidth);
         this.clickTarget.set_size(this._clickTargetSize, this._clickTargetSize);
 
@@ -191,11 +174,22 @@ export class PetView {
     }
 
     setState(state, resumeState = 'idle') {
+        this._agentState = state;
         this._animation.setState(state, resumeState);
+    }
+
+    setAutonomousAction(action) {
+        this._autonomousAction = action;
+        this._animation.setState(action?.animation ?? this._agentState);
     }
 
     setAnimationsEnabled(enabled) {
         this._animation.setAnimationsEnabled(enabled);
+    }
+
+    setMouseInteractionsEnabled(enabled) {
+        this.clickTarget.reactive = Boolean(enabled);
+        this.clickTarget.visible = Boolean(enabled);
     }
 
     setPosition(x, y) {
@@ -211,12 +205,13 @@ export class PetView {
 
     togglePanel() {
         this._panel.actor.visible = !this._panel.actor.visible;
+        this._onInteraction?.(this._panel.actor.visible ? 'panel-open' : 'panel-close');
         this._renderMessage();
     }
 
-    showMessage(title, message, persistent = false) {
+    showMessage(title, message, persistent = false, actions = []) {
         this._removeMessageTimeout();
-        this._message = {title, message};
+        this._message = {title, message, persistent, actions};
         this._renderMessage();
 
         if (!persistent && this._message) {
@@ -226,8 +221,7 @@ export class PetView {
                 () => {
                     this._messageTimeoutId = 0;
                     this._message = null;
-                    this._bubble.visible = false;
-                    this._bubble.text = '';
+                    this._bubble.hide();
                     return GLib.SOURCE_REMOVE;
                 });
         }
@@ -236,8 +230,7 @@ export class PetView {
     hideMessage() {
         this._removeMessageTimeout();
         this._message = null;
-        this._bubble.visible = false;
-        this._bubble.text = '';
+        this._bubble.hide();
     }
 
     destroy() {
@@ -246,6 +239,7 @@ export class PetView {
         this._finishDrag();
         this._draggable = null;
         this._panel.destroy();
+        this._bubble.destroy();
         this.clickTarget.destroy();
         this._dragOverlay.destroy();
         this._frames.clear();
@@ -281,16 +275,27 @@ export class PetView {
 
     _renderMessage() {
         if (this._panel.actor.visible || !this._message) {
-            this._bubble.visible = false;
-            this._bubble.text = '';
+            this._bubble.hide();
             return;
         }
-
-        const lineLength = Math.max(20, Math.floor(this._viewWidth / 7));
-        const titleLines = wrapText(this._message.title, lineLength, 1);
-        const messageLines = wrapText(this._message.message, lineLength, 2);
-        this._bubble.text = [...titleLines, ...messageLines].join('\n');
-        this._bubble.visible = this._bubble.text.length > 0;
+        this._bubble.show(this._message);
+        const [actorX, actorY] = this.actor.get_position();
+        const monitors = Main.layoutManager.monitors;
+        const centerX = actorX + this._viewWidth / 2;
+        const centerY = actorY + this._viewHeight / 2;
+        const monitor = monitors.find(item => centerX >= item.x && centerX < item.x + item.width &&
+            centerY >= item.y && centerY < item.y + item.height) ?? Main.layoutManager.primaryMonitor;
+        if (!monitor)
+            return;
+        const bubbleWidth = Math.max(80, Math.min(280, monitor.width - 16));
+        const bubbleHeight = 82 + Math.min(this._message.actions?.length ?? 0, 3) * 30;
+        this._bubble.setWidth(bubbleWidth);
+        const globalX = Math.min(Math.max(actorX + (this._viewWidth - bubbleWidth) / 2, monitor.x + 8),
+            monitor.x + monitor.width - bubbleWidth - 8);
+        let globalY = actorY - bubbleHeight - 8;
+        if (globalY < monitor.y + 8)
+            globalY = Math.min(actorY + this._viewHeight + 8, monitor.y + monitor.height - bubbleHeight - 8);
+        this._bubble.actor.set_position(globalX - actorX, globalY - actorY);
     }
 
     _showFrame(state, index) {

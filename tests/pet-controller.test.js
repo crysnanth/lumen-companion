@@ -7,13 +7,16 @@ function assert(condition, message) {
 }
 
 const calls = [];
+const behaviorStates = [];
 const view = {
     updatePanel: snapshot => calls.push(['panel', snapshot.state, snapshot.source, snapshot.tasks]),
     setState: (state, resumeState) => calls.push(['state', state, resumeState]),
     showMessage: (title, message, persistent) => calls.push(['show', title, message, persistent]),
     hideMessage: () => calls.push(['hide']),
 };
-const controller = new PetController(view);
+const controller = new PetController(view, undefined, {
+    setAgentState: state => behaviorStates.push(state),
+});
 const event = {
     schema_version: 1,
     source: 'codex_cli',
@@ -27,11 +30,15 @@ const event = {
 
 controller.handleEvent(event);
 assert(controller.getSnapshot().state === 'approval_required', 'approval is visible before preferences change');
+assert(behaviorStates.at(-1) === 'approval_required', 'agent attention is sent to the behavior arbiter immediately');
+assert(calls.some(call => call[0] === 'show' && call[1].includes('Codex CLI')),
+    'agent attention identifies the source in the persistent bubble');
 const snapshot = controller.reconcileSources(['claude_code']);
 assert(snapshot.state === 'idle' && controller.getSnapshot().state === 'idle',
     'reconciling away from Codex clears its retained task state');
 assert(calls.some(call => call[0] === 'state' && call[1] === 'idle') && calls.at(-1)[0] === 'hide',
     'source reconciliation updates the visual state and clears the persistent alert');
+assert(behaviorStates.at(-1) === 'idle', 'autonomy can resume after a source is reconciled away');
 
 controller.handleEvent({...event, source: 'claude_code', session_id: 'claude-session', task_id: 'work',
     kind: 'working', timestamp: '2026-10-24T12:00:01Z', message: 'Executando tarefa'});
