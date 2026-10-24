@@ -4,7 +4,7 @@ Data: 2026-10-24. Alvo: Debian 13, GNOME Shell 48, Wayland.
 
 ## Cobertura automatizada
 
-`./tests/run-all.sh` passou com 19 arquivos GJS e validação estrita do schema. Os testes novos cobrem seleção/cooldown/interrupção de ações, diálogos com cooldown, cancelamento e fim de caminhada, persistência de posição durante uma travessia interrompida, bloqueio de monitores em tela cheia, limites com coordenadas negativas, adjacência lateral/vertical, limpeza de timer, reposicionamento de balões e manifesto de mais de quatro quadros. `gnome-extensions pack` gerou o bundle local de 270 KiB. O bundle foi instalado temporariamente numa sessão GNOME Shell 48.7 ativa e ficou em estado `ACTIVE`; início e conclusão sintéticos voltaram com `accepted: true`, sem erros JS nos logs consultados. A cópia instalada anterior foi restaurada após esse smoke test.
+`./tests/run-all.sh` passou com 19 arquivos GJS e validação estrita do schema. Os testes novos cobrem seleção/cooldown/interrupção de ações, diálogos com cooldown, cancelamento e round-trip de posição durante uma travessia, clamp de arraste fora da borda, bloqueio de monitores em tela cheia, limites com coordenadas negativas, adjacência lateral/vertical, limpeza de timer, reposicionamento de balões e manifesto de mais de quatro quadros. `gnome-extensions pack` gerou o bundle local de 270 KiB. O bundle foi instalado temporariamente numa sessão GNOME Shell 48.7 ativa e ficou em estado `ACTIVE`; início e conclusão sintéticos voltaram com `accepted: true`, sem erros JS nos logs consultados. A cópia instalada anterior foi restaurada após esse smoke test.
 
 ## Recursos e custos observáveis
 

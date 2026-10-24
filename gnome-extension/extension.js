@@ -8,7 +8,11 @@ import {AutonomousWalker} from './lib/autonomous-walker.js';
 import {DialogueController} from './lib/dialogue-controller.js';
 import {SoundController} from './lib/sound-controller.js';
 import {IntegrationConfigWatcher} from './lib/integration-config.js';
-import {getPositionPersistence} from './lib/position-store.js';
+import {
+    getPositionPersistence,
+    normalizePositionForSave,
+    restoreStoredPosition,
+} from './lib/position-store.js';
 import {
     getLastEventSettingKey,
     shouldRecordLastEvent,
@@ -423,16 +427,16 @@ export default class LumenPetExtension extends Extension {
         if (!monitors.length || !this._pet)
             return;
 
-        const savedIndex = this._settings.get_int('position-monitor');
-        const monitor = monitors.find(item => item.index === savedIndex) ??
-            Main.layoutManager.primaryMonitor ?? monitors[0];
-        const maxX = monitor.x + monitor.width - this._pet.actor.width;
-        const maxY = monitor.y + monitor.height - this._pet.actor.height;
-        const x = clamp(monitor.x + this._settings.get_int('position-x'), monitor.x, maxX);
-        const y = clamp(monitor.y + this._settings.get_int('position-y'), monitor.y, maxY);
-
-        this._pet.setPosition(x, y);
-        this._savePosition(x, y);
+        const restored = restoreStoredPosition({
+            monitorIndex: this._settings.get_int('position-monitor'),
+            x: this._settings.get_int('position-x'),
+            y: this._settings.get_int('position-y'),
+        }, {width: this._pet.actor.width, height: this._pet.actor.height}, monitors,
+        Main.layoutManager.primaryMonitor);
+        if (!restored)
+            return;
+        this._pet.setPosition(restored.x, restored.y);
+        this._persistPosition(restored.x, restored.y);
     }
 
     _savePosition(x, y) {
@@ -441,19 +445,17 @@ export default class LumenPetExtension extends Extension {
 
         const monitors = Main.layoutManager.monitors;
         const size = {width: this._pet.actor.width, height: this._pet.actor.height};
-        let saved = getPositionPersistence({x, y}, size, monitors);
+        const saved = normalizePositionForSave({x, y}, size, monitors);
         if (!saved)
             return;
 
-        if (!saved.centerOnMonitor) {
-            const monitor = saved.monitor;
-            x = clamp(x, monitor.x, monitor.x + monitor.width - size.width);
-            y = clamp(y, monitor.y, monitor.y + monitor.height - size.height);
+        if (saved.wasClamped) {
+            x = saved.position.x;
+            y = saved.position.y;
             this._pet.setPosition(x, y);
-            saved = getPositionPersistence({x, y}, size, monitors);
         }
 
-        this._persistPosition(x, y);
+        this._writePosition(saved);
     }
 
     _persistPosition(x, y) {
@@ -462,6 +464,12 @@ export default class LumenPetExtension extends Extension {
         const saved = getPositionPersistence({x, y},
             {width: this._pet.actor.width, height: this._pet.actor.height}, Main.layoutManager.monitors);
         if (!saved)
+            return;
+        this._writePosition(saved);
+    }
+
+    _writePosition(saved) {
+        if (!this._settings || !saved)
             return;
         this._settings.set_int('position-monitor', saved.monitor.index);
         this._settings.set_int('position-x', saved.x);
