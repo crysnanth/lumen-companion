@@ -1,0 +1,60 @@
+{
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/usr/bin/gjs -m /home/crysnanth/projetos/meu_pet/integrations/claude-code/hook-adapter.js",
+            "timeout": 2
+          }
+        ]
+      }
+    ],
+    "PermissionRequest": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/usr/bin/gjs -m /home/crysnanth/projetos/meu_pet/integrations/claude-code/hook-adapter.js",
+            "timeout": 2
+          }
+        ]
+      }
+    ],
+    "Notification": [
+      {
+        "matcher": "permission_prompt|idle_prompt|elicitation_dialog|elicitation_url_dialog|agent_needs_input",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/usr/bin/gjs -m /home/crysnanth/projetos/meu_pet/integrations/claude-code/hook-adapter.js",
+            "timeout": 2
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/usr/bin/gjs -m /home/crysnanth/projetos/meu_pet/integrations/claude-code/hook-adapter.js",
+            "timeout": 2
+          }
+        ]
+      }
+    ],
+    "StopFailure": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/usr/bin/gjs -m /home/crysnanth/projetos/meu_pet/integrations/claude-code/hook-adapter.js",
+            "timeout": 2
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -1,12 +1,12 @@
 # Lúmen Pet
 
-Mascote pixel-art integrado à área de trabalho GNOME. O Lúmen mostra o estado do **Codex CLI** por eventos locais; ele não executa um segundo modelo de IA.
+Mascote pixel-art integrado à área de trabalho GNOME. O Lúmen mostra estados do **Codex CLI** e do **Claude Code** por eventos locais; ele não executa um segundo modelo de IA.
 
 ## Ambiente validado
 
 - Debian 13, GNOME Shell 48.7 e sessão Wayland.
 - A extensão usa atores do GNOME Shell e D-Bus da sessão do usuário.
-- A integração atual é com hooks do Codex CLI. O Codex Desktop e o serviço Rust não fazem parte da configuração atual.
+- As integrações atuais usam hooks do Codex CLI e do Claude Code. O Codex Desktop e o serviço Rust não fazem parte da configuração atual.
 
 ## Instalar a extensão
 
@@ -46,6 +46,10 @@ O simulador envia eventos pela sessão D-Bus local. O contrato, limites e respos
 
 A integração por hooks é descrita em [docs/codex-integration.md](docs/codex-integration.md). Ela envia notificações ao Lúmen, não aprova solicitações e não altera comandos do agente. Revise e confie os hooks no próprio Codex antes de usá-los.
 
+## Claude Code
+
+A integração por hooks está descrita em [docs/claude-code-integration.md](docs/claude-code-integration.md). Ela observa eventos, não decide permissões nem altera prompts, ferramentas ou respostas.
+
 ## Remover
 
 ```sh
@@ -61,5 +65,6 @@ Isso remove a extensão. Os dados de posição e preferências do GNOME podem pe
 - [Desenvolvimento e empacotamento](docs/development.md)
 - [Eventos D-Bus](docs/events.md)
 - [Integração Codex CLI](docs/codex-integration.md)
+- [Integração Claude Code](docs/claude-code-integration.md)
 - [Diagnóstico](docs/troubleshooting.md)
 - [Relatórios técnicos](docs/reports/)
