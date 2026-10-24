@@ -15,6 +15,7 @@ const SPRITE_Y = 76;
 
 export class PetView {
     constructor(extension, onPositionChanged, onInteraction = null) {
+        this._extension = extension;
         this._onPositionChanged = onPositionChanged;
         this._onInteraction = onInteraction;
         this._displaySize = BASE_DISPLAY_SIZE;
@@ -36,13 +37,14 @@ export class PetView {
         this._visibleFrame = null;
         this._messageTimeoutId = 0;
         this._message = null;
+        this._bubbleChromeAdded = false;
+        this._bubbleControlsChromeAdded = false;
+        this._bubbleTrackFullscreen = false;
         this._agentState = 'idle';
         this._autonomousAction = null;
         this._panel = new PetPanel(this._viewWidth);
         this._bubble = new SpeechBubble();
-        this._bubble.actor.set_position(0, 0);
         this._bubble.setWidth(this._viewWidth);
-        this.actor.add_child(this._bubble.actor);
         this.actor.add_child(this._panel.actor);
 
         this.clickTarget = new St.Button({
@@ -171,6 +173,7 @@ export class PetView {
 
         const [x, y] = this.actor.get_position();
         this.setPosition(x, y);
+        this._renderMessage();
     }
 
     setState(state, resumeState = 'idle') {
@@ -209,9 +212,9 @@ export class PetView {
         this._renderMessage();
     }
 
-    showMessage(title, message, persistent = false, actions = []) {
+    showMessage(title, message, persistent = false, actions = [], metadata = '') {
         this._removeMessageTimeout();
-        this._message = {title, message, persistent, actions};
+        this._message = {title, message, persistent, actions, metadata};
         this._renderMessage();
 
         if (!persistent && this._message) {
@@ -221,7 +224,7 @@ export class PetView {
                 () => {
                     this._messageTimeoutId = 0;
                     this._message = null;
-                    this._bubble.hide();
+                    this._hideBubble();
                     return GLib.SOURCE_REMOVE;
                 });
         }
@@ -230,7 +233,7 @@ export class PetView {
     hideMessage() {
         this._removeMessageTimeout();
         this._message = null;
-        this._bubble.hide();
+        this._hideBubble();
     }
 
     destroy() {
@@ -239,6 +242,7 @@ export class PetView {
         this._finishDrag();
         this._draggable = null;
         this._panel.destroy();
+        this._removeBubbleChrome();
         this._bubble.destroy();
         this.clickTarget.destroy();
         this._dragOverlay.destroy();
@@ -275,10 +279,10 @@ export class PetView {
 
     _renderMessage() {
         if (this._panel.actor.visible || !this._message) {
-            this._bubble.hide();
+            this._hideBubble();
             return;
         }
-        this._bubble.show(this._message);
+        const hasActions = this._bubble.show(this._message);
         const [actorX, actorY] = this.actor.get_position();
         const monitors = Main.layoutManager.monitors;
         const centerX = actorX + this._viewWidth / 2;
@@ -288,14 +292,67 @@ export class PetView {
         if (!monitor)
             return;
         const bubbleWidth = Math.max(80, Math.min(280, monitor.width - 16));
-        const bubbleHeight = 82 + Math.min(this._message.actions?.length ?? 0, 3) * 30;
         this._bubble.setWidth(bubbleWidth);
+        const [, contentHeight] = this._bubble.actor.get_preferred_height(bubbleWidth);
+        const [, controlsHeight] = this._bubble.controls.get_preferred_height(bubbleWidth - 16);
+        const bubbleHeight = Math.max(72, contentHeight + (hasActions ? Math.max(38, controlsHeight + 8) : 0));
+        this._bubble.actor.set_height(bubbleHeight);
         const globalX = Math.min(Math.max(actorX + (this._viewWidth - bubbleWidth) / 2, monitor.x + 8),
             monitor.x + monitor.width - bubbleWidth - 8);
         let globalY = actorY - bubbleHeight - 8;
         if (globalY < monitor.y + 8)
             globalY = Math.min(actorY + this._viewHeight + 8, monitor.y + monitor.height - bubbleHeight - 8);
-        this._bubble.actor.set_position(globalX - actorX, globalY - actorY);
+        const controlsY = globalY + bubbleHeight - Math.max(30, controlsHeight) - 8;
+        this._bubble.setPosition(globalX, globalY, controlsY);
+        this._syncBubbleChrome(hasActions);
+    }
+
+    refreshBubbleFullscreenTracking() {
+        if (this._message)
+            this._renderMessage();
+    }
+
+    _syncBubbleChrome(hasActions) {
+        const trackFullscreen = this._extension._settings?.get_boolean('hide-in-fullscreen') ?? false;
+        const trackChanged = this._bubbleChromeAdded && trackFullscreen !== this._bubbleTrackFullscreen;
+        if (trackChanged)
+            this._removeBubbleChrome();
+        if (!this._bubbleChromeAdded) {
+            Main.layoutManager.addTopChrome(this._bubble.actor, {
+                affectsStruts: false,
+                affectsInputRegion: false,
+                trackFullscreen,
+            });
+            this._bubbleChromeAdded = true;
+            this._bubbleTrackFullscreen = trackFullscreen;
+        }
+        if (hasActions && !this._bubbleControlsChromeAdded) {
+            Main.layoutManager.addTopChrome(this._bubble.controls, {
+                affectsStruts: false,
+                affectsInputRegion: true,
+                trackFullscreen,
+            });
+            this._bubbleControlsChromeAdded = true;
+        } else if (!hasActions && this._bubbleControlsChromeAdded) {
+            Main.layoutManager.removeChrome(this._bubble.controls);
+            this._bubbleControlsChromeAdded = false;
+        }
+    }
+
+    _hideBubble() {
+        this._bubble.hide();
+        this._removeBubbleChrome();
+    }
+
+    _removeBubbleChrome() {
+        if (this._bubbleControlsChromeAdded) {
+            Main.layoutManager.removeChrome(this._bubble.controls);
+            this._bubbleControlsChromeAdded = false;
+        }
+        if (this._bubbleChromeAdded) {
+            Main.layoutManager.removeChrome(this._bubble.actor);
+            this._bubbleChromeAdded = false;
+        }
     }
 
     _showFrame(state, index) {

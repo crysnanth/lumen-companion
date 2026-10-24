@@ -77,14 +77,14 @@ export class PetController {
             const source = result.source ?? snapshot.source;
             const sourceName = source === 'codex_cli' ? 'Codex CLI' :
                 source === 'claude_code' ? 'Claude Code' : source;
-            const task = snapshot.tasks?.find(item => item.source === source && item.task_id === result.task_id) ??
-                snapshot.tasks?.[0];
+            const task = snapshot.tasks?.find(item => item.source === source &&
+                item.task_id === result.task_id && item.session_id === result.session_id);
+            const sessionId = result.session_id ?? task?.session_id;
             const title = source ? `${sourceName} — ${result.title}` : result.title;
-            const context = task
-                ? `Sessão ${task.session_id}. Responda na interface original; o Lúmen não aprova nem envia respostas.`
+            const metadata = sessionId
+                ? `Sessão ${sessionId} · responda no app original.`
                 : '';
-            const message = [context, result.message].filter(Boolean).join('\n');
-            this._view.showMessage(title, message, result.persistent);
+            this._view.showMessage(title, result.message, result.persistent, [], metadata);
         } else {
             this._view.hideMessage();
         }

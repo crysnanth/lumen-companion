@@ -101,4 +101,47 @@ clock.advance(2260);
 assert(crossPosition.x > 0, 'pet crosses into an adjacent monitor continuously');
 assert(largestStep <= 25, 'monitor transition does not teleport the pet');
 crossingWalker.destroy();
+
+const west = {index: 3, x: 0, y: 0, width: 1000, height: 800};
+const offsetEast = {index: 4, x: 1000, y: 500, width: 1000, height: 800};
+let offsetPosition = {x: 840, y: 100};
+let offsetLargestStep = 0;
+const offsetWalker = new AutonomousWalker({
+    getPosition: () => offsetPosition,
+    setPosition: (x, y) => {
+        offsetLargestStep = Math.max(offsetLargestStep, Math.hypot(x - offsetPosition.x, y - offsetPosition.y));
+        offsetPosition = {x, y};
+    },
+    getSize: () => ({width: 160, height: 160}),
+    getMonitors: () => [west, offsetEast],
+    schedule: clock.schedule,
+    cancel: clock.cancel,
+    now: () => clock.now,
+    random: () => 0,
+});
+offsetWalker.start({durationMs: 300, speed: 200, direction: 'right'});
+clock.advance(360);
+assert(offsetPosition.x < offsetEast.x && offsetPosition.y === 100,
+    'pet reflects at an offset monitor edge when it is outside the shared usable band');
+assert(offsetLargestStep <= 13, 'offset monitor layouts never teleport the pet across the shared band');
+offsetWalker.destroy();
+
+const shortWest = {index: 5, x: 0, y: 0, width: 1000, height: 400};
+const shortEast = {index: 6, x: 1000, y: 350, width: 1000, height: 400};
+let shortPosition = {x: 840, y: 100};
+const shortWalker = new AutonomousWalker({
+    getPosition: () => shortPosition,
+    setPosition: (x, y) => shortPosition = {x, y},
+    getSize: () => ({width: 160, height: 160}),
+    getMonitors: () => [shortWest, shortEast],
+    schedule: clock.schedule,
+    cancel: clock.cancel,
+    now: () => clock.now,
+    random: () => 0,
+});
+shortWalker.start({durationMs: 300, speed: 200, direction: 'right'});
+clock.advance(360);
+assert(shortPosition.x < shortEast.x && shortPosition.y === 100,
+    'monitors with an overlap shorter than the pet cannot be crossed');
+shortWalker.destroy();
 print('PASS: bounded autonomous movement and cleanup');

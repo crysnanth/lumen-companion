@@ -4,6 +4,16 @@ import {clampPosition, findAdjacentMonitor, findMonitorForPet, getWorkArea} from
 const STEP_MS = 60;
 const DEFAULT_SPEED = 115;
 
+function hasUsableSharedSpan(currentArea, nextArea, position, size, horizontal) {
+    const start = horizontal ? Math.max(currentArea.y, nextArea.y) : Math.max(currentArea.x, nextArea.x);
+    const end = horizontal
+        ? Math.min(currentArea.bottom, nextArea.bottom)
+        : Math.min(currentArea.right, nextArea.right);
+    const extent = horizontal ? size.height : size.width;
+    const coordinate = horizontal ? position.y : position.x;
+    return end - start >= extent && coordinate >= start && coordinate <= end - extent;
+}
+
 /** Moves only while active; no timer is kept while paused or at rest. */
 export class AutonomousWalker {
     constructor({getPosition, setPosition, getSize, getMonitors, getWorkAreaForMonitor, onStopped = null,
@@ -102,7 +112,12 @@ export class AutonomousWalker {
             : Math.max(workArea.y, workArea.y + workArea.height - size.height);
         const next = (horizontal ? position.x : position.y) + sign * this._speed * STEP_MS / 1000;
         if (next < min || next > max) {
-            const adjacent = this._roamAll ? findAdjacentMonitor(this._monitor, this._direction, monitors) : null;
+            let adjacent = this._roamAll ? findAdjacentMonitor(this._monitor, this._direction, monitors) : null;
+            const nextArea = adjacent
+                ? getWorkArea(adjacent, this._getWorkAreaForMonitor?.(adjacent.index) ?? null, 12)
+                : null;
+            if (adjacent && !hasUsableSharedSpan(workArea, nextArea, position, size, horizontal))
+                adjacent = null;
             if (adjacent) {
                 const nextX = horizontal ? next : position.x;
                 const nextY = horizontal ? position.y : next;
@@ -112,8 +127,6 @@ export class AutonomousWalker {
                     (this._direction === 'down' && nextY >= adjacent.y) ||
                     (this._direction === 'up' && nextY + size.height <= adjacent.y + adjacent.height)) {
                     this._monitor = adjacent;
-                    const nextArea = getWorkArea(adjacent,
-                        this._getWorkAreaForMonitor?.(adjacent.index) ?? null, 12);
                     const clamped = clampPosition({x: nextX, y: nextY}, size, nextArea);
                     this._setPosition(clamped.x, clamped.y);
                 }

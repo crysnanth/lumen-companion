@@ -11,7 +11,8 @@ const behaviorStates = [];
 const view = {
     updatePanel: snapshot => calls.push(['panel', snapshot.state, snapshot.source, snapshot.tasks]),
     setState: (state, resumeState) => calls.push(['state', state, resumeState]),
-    showMessage: (title, message, persistent) => calls.push(['show', title, message, persistent]),
+    showMessage: (title, message, persistent, actions, metadata) =>
+        calls.push(['show', title, message, persistent, actions, metadata]),
     hideMessage: () => calls.push(['hide']),
 };
 const controller = new PetController(view, undefined, {
@@ -45,6 +46,15 @@ controller.handleEvent({...event, source: 'claude_code', session_id: 'claude-ses
 const panelUpdate = calls.filter(call => call[0] === 'panel').at(-1);
 assert(panelUpdate[3].length === 1 && panelUpdate[3][0].session_id === 'claude-session',
     'controller sends per-session task details to the panel');
+
+const longSessionId = 'S'.repeat(128);
+const completionText = 'Q'.repeat(200);
+controller.handleEvent({...event, session_id: longSessionId, task_id: 'finished', kind: 'task_completed',
+    timestamp: '2026-10-24T12:00:03Z', title: 'Concluída', message: completionText});
+const completionBubble = calls.filter(call => call[0] === 'show').at(-1);
+assert(completionBubble[2] === completionText && completionBubble[5].includes(longSessionId),
+    'long session metadata does not truncate or hide the complete completion question/message');
+assert(!completionBubble[2].includes(longSessionId), 'session metadata is not prefixed into the message text');
 
 const expiryCalls = [];
 const expiryView = {

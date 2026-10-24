@@ -3,6 +3,7 @@ import St from 'gi://St';
 
 const MAX_TITLE = 80;
 const MAX_MESSAGE = 200;
+const MAX_METADATA = 180;
 const MAX_ACTIONS = 3;
 
 function safeText(value, limit) {
@@ -11,12 +12,12 @@ function safeText(value, limit) {
     return Array.from(value.replace(/[\u0000-\u001F\u007F]/g, ' ').trim()).slice(0, limit).join('');
 }
 
-/** Small interactive bubble; only its own actor and buttons receive input. */
+/** Visual text and controls are separate actors so only the control row needs input. */
 export class SpeechBubble {
     constructor() {
         this.actor = new St.BoxLayout({
             vertical: true,
-            reactive: true,
+            reactive: false,
             can_focus: false,
             visible: false,
             style: [
@@ -32,22 +33,32 @@ export class SpeechBubble {
         });
         this.title = new St.Label({text: '', style: 'font-weight: bold;'});
         this.message = new St.Label({text: ''});
+        this.metadata = new St.Label({text: '', style: 'color: #B8C9D4; font-size: 10px;'});
         this.title.clutter_text.line_wrap = true;
         this.message.clutter_text.line_wrap = true;
         this.title.clutter_text.line_wrap_mode = Pango.WrapMode.WORD_CHAR;
         this.message.clutter_text.line_wrap_mode = Pango.WrapMode.WORD_CHAR;
-        this.actions = new St.BoxLayout({vertical: false, style: 'spacing: 6px;'});
+        this.metadata.clutter_text.line_wrap = true;
+        this.metadata.clutter_text.line_wrap_mode = Pango.WrapMode.WORD_CHAR;
+        this.controls = new St.BoxLayout({
+            vertical: false,
+            reactive: true,
+            can_focus: false,
+            visible: false,
+            style: 'spacing: 6px;',
+        });
         this.actor.add_child(this.title);
         this.actor.add_child(this.message);
-        this.actor.add_child(this.actions);
+        this.actor.add_child(this.metadata);
         this.actor.set_width(240);
     }
 
-    show({title = '', message = '', actions = []} = {}) {
+    show({title = '', message = '', metadata = '', actions = []} = {}) {
         this.title.text = safeText(title, MAX_TITLE);
         this.message.text = safeText(message, MAX_MESSAGE);
-        for (const child of [...this.actions.get_children()]) {
-            this.actions.remove_child(child);
+        this.metadata.text = safeText(metadata, MAX_METADATA);
+        for (const child of [...this.controls.get_children()]) {
+            this.controls.remove_child(child);
             child.destroy();
         }
         for (const action of actions.slice(0, MAX_ACTIONS)) {
@@ -63,10 +74,11 @@ export class SpeechBubble {
                 style: 'color: #F4F7FB; background-color: #16424D; border-radius: 5px; padding: 4px 7px;',
             });
             button.connect('clicked', () => action.onClick?.());
-            this.actions.add_child(button);
+            this.controls.add_child(button);
         }
-        this.actions.visible = this.actions.get_n_children() > 0;
+        this.controls.visible = this.controls.get_n_children() > 0;
         this.actor.visible = true;
+        return this.controls.visible;
     }
 
     hide() {
@@ -77,10 +89,20 @@ export class SpeechBubble {
         this.actor.set_width(width);
         this.title.set_width(width - 20);
         this.message.set_width(width - 20);
+        this.metadata.set_width(width - 20);
+        const [, controlsWidth] = this.controls.get_preferred_width(-1);
+        this.controls.set_width(Math.min(width - 16, controlsWidth));
+    }
+
+    setPosition(x, y, controlsY = y) {
+        this.actor.set_position(x, y);
+        this.controls.set_position(x + 8, controlsY);
     }
 
     destroy() {
         this.actor.destroy();
+        this.controls.destroy();
         this.actor = null;
+        this.controls = null;
     }
 }

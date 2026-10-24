@@ -30,12 +30,16 @@ export default class LumenPetExtension extends Extension {
         this._pet = new PetView(this, (x, y) => this._savePosition(x, y), interaction => {
             if (interaction === 'drag-begin')
                 this._behavior?.pause('drag');
-            else if (interaction === 'panel-open')
+            else if (interaction === 'panel-open') {
+                this._finishDialogue();
                 this._behavior?.pause('panel');
+            }
             else if (interaction === 'drag-end')
                 this._behavior?.resume('drag');
-            else if (interaction === 'panel-close')
+            else if (interaction === 'panel-close') {
+                this._finishDialogue();
                 this._behavior?.resume('panel');
+            }
             else if (interaction === 'hover')
                 this._behavior?.requestAction('look');
             else if (interaction === 'click')
@@ -64,6 +68,7 @@ export default class LumenPetExtension extends Extension {
             },
         });
         this._dialogue = new DialogueController();
+        this._dialogueActive = false;
         this._behavior = new BehaviorController(action => this._onBehaviorAction(action));
         this._behavior.setEnabled(this._settings.get_boolean('autonomous-behaviors-enabled'));
         this._behavior.setFrequency(this._settings.get_int('behavior-frequency'));
@@ -84,7 +89,7 @@ export default class LumenPetExtension extends Extension {
         this._controller.start();
         this._behavior.start();
         this._integrationConfig = new IntegrationConfigWatcher(() => {
-            this._dialogue?.cancel();
+            this._finishDialogue(false);
             this._controller?.reconcileSources(this._integrationConfig.getActiveSources());
         });
         this._integrationConfig.start();
@@ -109,7 +114,7 @@ export default class LumenPetExtension extends Extension {
                 return {accepted: false, state: 'idle', reason: 'integration disabled or not preferred'};
             const result = this._controller.handleEvent(event);
             if (result.accepted) {
-                this._dialogue.cancel();
+                this._finishDialogue(false);
                 this._sounds.play(result.state);
                 const key = getLastEventSettingKey(event?.source);
                 if (key && typeof event.kind === 'string') {
@@ -137,47 +142,62 @@ export default class LumenPetExtension extends Extension {
         this._fullscreenSignalId = global.display.connect('in-fullscreen-changed',
             () => this._updateFullscreenBehavior());
         this._petSizeChangedId = this._settings.connect('changed::pet-size', () => {
+            this._finishDialogue();
             this._pet.setSize(this._getDisplaySize());
             const [x, y] = this._pet.actor.get_position();
             this._savePosition(x, y);
         });
         this._animationsChangedId = this._settings.connect('changed::animations-enabled', () => {
+            this._finishDialogue();
             this._pet.setAnimationsEnabled(this._animationsEnabled());
         });
         this._fullscreenChangedId = this._settings.connect('changed::hide-in-fullscreen', () => {
+            this._finishDialogue();
             this._updateFullscreenTracking(this._settings.get_boolean('hide-in-fullscreen'));
             this._updateFullscreenBehavior();
         });
         this._soundsChangedId = this._settings.connect('changed::sounds-enabled', () => {
+            this._finishDialogue();
             this._sounds.setEnabled(this._settings.get_boolean('sounds-enabled'));
         });
         this._behaviorChangedId = this._settings.connect('changed::autonomous-behaviors-enabled', () => {
+            this._finishDialogue();
             this._behavior.setEnabled(this._settings.get_boolean('autonomous-behaviors-enabled'));
         });
         this._roamingChangedId = this._settings.connect('changed::roaming-enabled', () => {
+            this._finishDialogue();
             this._behavior.setActionEnabled('walk', this._walkingAllowed());
         });
         this._roamingMonitorsChangedId = this._settings.connect('changed::roam-all-monitors', () => {
+            this._finishDialogue();
             this._behavior.cancelCurrent();
         });
         this._reducedMotionChangedId = this._settings.connect('changed::reduced-motion', () => {
+            this._finishDialogue();
             this._pet.setAnimationsEnabled(this._animationsEnabled());
             this._behavior.setActionEnabled('walk', this._walkingAllowed());
         });
         this._mouseInteractionsChangedId = this._settings.connect('changed::mouse-interactions-enabled', () => {
+            this._finishDialogue();
             this._pet.setMouseInteractionsEnabled(this._settings.get_boolean('mouse-interactions-enabled'));
         });
         this._walkSpeedChangedId = this._settings.connect('changed::walk-speed', () => {
+            this._finishDialogue();
             if (this._behavior)
                 this._behavior.cancelCurrent();
         });
         this._frequencyChangedId = this._settings.connect('changed::behavior-frequency', () => {
+            this._finishDialogue();
             this._behavior.setFrequency(this._settings.get_int('behavior-frequency'));
         });
         this._quietModeChangedId = this._settings.connect('changed::quiet-mode', () => {
+            this._finishDialogue();
             this._behavior.setQuietMode(this._settings.get_boolean('quiet-mode'));
             this._behavior.setActionEnabled('walk', this._walkingAllowed());
             this._pet.setAnimationsEnabled(this._animationsEnabled());
+        });
+        this._dialoguePreferenceChangedId = this._settings.connect('changed::spontaneous-dialogue-enabled', () => {
+            this._finishDialogue();
         });
     }
 
@@ -244,6 +264,10 @@ export default class LumenPetExtension extends Extension {
         this._reducedMotionChangedId = 0;
         this._mouseInteractionsChangedId = 0;
         this._walkSpeedChangedId = 0;
+        if (this._dialoguePreferenceChangedId) {
+            this._settings.disconnect(this._dialoguePreferenceChangedId);
+            this._dialoguePreferenceChangedId = 0;
+        }
         for (const id of [this._frequencyChangedId, this._quietModeChangedId]) {
             if (id)
                 this._settings.disconnect(id);
@@ -284,30 +308,42 @@ export default class LumenPetExtension extends Extension {
     _handlePetClick() {
         const snapshot = this._controller.getSnapshot();
         if (snapshot.tasks.length > 0) {
-            this._dialogue.cancel();
+            this._finishDialogue();
             this._pet.togglePanel();
             return;
         }
         if (!this._settings.get_boolean('spontaneous-dialogue-enabled')) {
+            this._finishDialogue();
             this._pet.togglePanel();
             return;
         }
         const dialogue = this._dialogue.start({walkingAllowed: this._walkingAllowed()});
         if (!dialogue) {
+            this._finishDialogue();
             this._pet.togglePanel();
             return;
         }
         this._behavior.pause('dialogue');
+        this._dialogueActive = true;
         const actions = dialogue.choices.map(choice => ({label: choice.label, onClick: () => {
             const selected = this._dialogue.choose(choice.id);
             if (!selected)
                 return;
+            this._finishDialogue(false);
             this._pet.showMessage('Lúmen', selected.reply);
-            this._behavior.resume('dialogue');
             if (selected.behavior)
                 this._behavior.requestAction(selected.behavior);
         }}));
         this._pet.showMessage(dialogue.title, dialogue.message, true, actions);
+    }
+
+    _finishDialogue(hideBubble = true) {
+        const wasActive = this._dialogueActive;
+        this._dialogueActive = false;
+        this._dialogue?.cancel();
+        this._behavior?.resume('dialogue');
+        if (hideBubble && wasActive)
+            this._pet?.hideMessage();
     }
 
     _onBehaviorAction(action) {
@@ -357,6 +393,7 @@ export default class LumenPetExtension extends Extension {
             trackFullscreen: enabled,
         });
         this._petChromeAdded = true;
+        this._pet.refreshBubbleFullscreenTracking();
     }
 
     _updateFullscreenBehavior() {
