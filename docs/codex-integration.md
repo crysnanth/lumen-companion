@@ -1,6 +1,6 @@
 # Integração com Codex CLI
 
-A integração atual usa os command hooks oficiais do Codex. O adaptador é executado por evento e encaminha uma notificação JSON ao transporte local do Lúmen. A interface compartilhada em `integrations/common/event-transport.js` serializa e limita o payload; `integrations/linux/dbus-session-transport.js` implementa o transporte D-Bus da sessão GNOME; `integrations/event-sender.js` liga a interface ao backend disponível. A leitura de `stdin` específica do GJS está isolada em `integrations/linux/hook-input.js`, sem importar Gio no adaptador Codex. Outro sistema pode fornecer um transporte com o mesmo método `sendEventJson(eventJson)` e registrá-lo nesse ponto de composição. O hook não retorna decisões e termina sem saída em `stdout` ou `stderr`, mesmo se a extensão estiver ausente ou o envio falhar.
+A integração atual usa os command hooks oficiais do Codex. O processo do hook obtém o adaptador `codex_cli` do catálogo compartilhado (`integrations/catalog.js`) e passa o JSON recebido para seu `mapEvent`. Esse adaptador reutiliza `integrations/codex/hook-mapper.js`; o contrato em `integrations/common/agent-adapter.js` valida versão, identificadores, tipo de evento, timestamp e limite do payload antes do envio. O processo encaminha o evento validado ao transporte local do Lúmen. A interface compartilhada em `integrations/common/event-transport.js` serializa e limita o payload; `integrations/linux/dbus-session-transport.js` implementa o transporte D-Bus da sessão GNOME; `integrations/event-sender.js` liga a interface ao backend disponível. A leitura de `stdin` específica do GJS está isolada em `integrations/linux/hook-input.js`, sem importar Gio no adaptador Codex. Outro sistema pode fornecer um transporte com o mesmo método `sendEventJson(eventJson)` e registrá-lo nesse ponto de composição. O hook não retorna decisões e termina sem saída em `stdout` ou `stderr`, mesmo se a extensão estiver ausente ou o envio falhar.
 
 ## Eventos mapeados
 
@@ -14,11 +14,11 @@ A integração atual usa os command hooks oficiais do Codex. O adaptador é exec
 
 O aviso de aprovação é persistente. Embora `PreToolUse` informe que uma ferramenta vai começar, o Codex não documenta um `tool_use_id` compartilhado com `PermissionRequest`; portanto esse evento pode pertencer a outra ferramenta paralela. Por segurança, atividade não correlacionada não apaga o aviso. Ele é removido por `Stop` (`idle`) ou `Interrupt`. Assim, após uma aprovação aceita, o aviso pode permanecer até o turno encerrar; após uma negação, permanece até o Codex encerrar ou interromper o turno.
 
-O adaptador descarta `prompt`, `tool_input`, mensagens finais, comandos e caminhos. Usa apenas o tipo do hook, `session_id` e `turn_id`. A notificação usa timeout de 500 ms e falhas de serialização ou transporte são ignoradas para que o Codex continue.
+O mapper descarta `prompt`, `tool_input`, mensagens finais, comandos e caminhos. O evento inclui somente os campos do contrato necessários à observação (`schema_version`, `source`, `session_id`, `task_id`, `kind`, `title`, `message` e `timestamp`); `task_id` usa `turn_id`, com fallback para `session_id`. A notificação usa timeout de 500 ms e falhas de leitura, mapeamento, serialização ou transporte são ignoradas para que o Codex continue.
 
 Os eventos novos usam `source: "codex_cli"`. A extensão ainda aceita e normaliza `source: "codex"`, usado pela versão anterior do adaptador, para manter compatibilidade com mensagens v1 já produzidas.
 
-As definições ficam em `~/.codex/hooks.json`. Ao confiar os hooks pela tela `/hooks` do CLI, o próprio Codex grava os hashes de confiança em `[hooks.state]` no `config.toml`; as demais configurações existentes são preservadas. Uma definição alterada fica pendente de nova revisão.
+As definições ficam em `~/.codex/hooks.json`. Instale o arquivo para essa localização e confira os caminhos absolutos dos cinco comandos. Ao confiar os hooks pela tela `/hooks` do CLI, revise cada definição e aceite-a; o próprio Codex grava os hashes de confiança em `[hooks.state]` no `config.toml`. As demais configurações existentes são preservadas. Uma definição alterada fica pendente de nova revisão e confiança.
 
 Para instalar ou reverter manualmente:
 
