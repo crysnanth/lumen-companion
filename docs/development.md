@@ -18,6 +18,7 @@ gjs -m tests/animation-controller.test.js
 gjs -m tests/state-machine.test.js
 gjs -m tests/sound-controller.test.js
 gjs -m tests/codex-hook-mapper.test.js
+gjs -m tests/event-transport.test.js
 glib-compile-schemas --strict --dry-run gnome-extension/schemas
 ```
 

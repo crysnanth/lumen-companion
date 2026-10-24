@@ -2,6 +2,8 @@
 
 O Lúmen recebe notificações pelo barramento D-Bus da sessão do usuário. O método `NotifyEvent(s event_json) -> (b accepted, s state, s reason)` aceita um objeto JSON por chamada. O serviço existe enquanto a extensão está habilitada.
 
+Os emissores usam a interface de transporte em `integrations/common/event-transport.js`; o backend Linux/GNOME está em `integrations/linux/dbus-session-transport.js`, selecionado em `integrations/event-sender.js`. O limite comum de 4096 bytes UTF-8 é aplicado antes do envio. Emissores usam entrega best effort: erros de serialização ou transporte não interferem no processo do agente. O simulador pode exibir o resultado localmente; hooks não escrevem em `stdout` ou `stderr`.
+
 | Endereço | Valor |
 |---|---|
 | Nome do serviço | `local.meupet.LumenPet` |
