@@ -1,6 +1,9 @@
 import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
-import {isLegacyIntegrationCommand} from '../../gnome-extension/lib/integration-config.js';
+import {
+    getHookConfigStructureError,
+    isLegacyIntegrationCommand,
+} from '../../gnome-extension/lib/integration-config.js';
 
 const INTEGRATIONS = Object.freeze({
     codex_cli: {
@@ -91,8 +94,9 @@ function isManagedAction(action, id) {
 }
 
 function removeManagedHooks(config, id, integration) {
-    if (!isObject(config.hooks))
-        throw new Error('A configuração não contém um objeto "hooks" válido.');
+    const structureError = getHookConfigStructureError(config.hooks);
+    if (structureError)
+        throw new Error(structureError);
     for (const [event, groups] of Object.entries(config.hooks)) {
         if (!Array.isArray(groups))
             throw new Error(`A lista de hooks "${event}" não é válida; nenhuma alteração foi gravada.`);

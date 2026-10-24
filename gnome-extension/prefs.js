@@ -6,6 +6,7 @@ import Gtk from 'gi://Gtk?version=4.0';
 import {ExtensionPreferences} from 'resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js';
 import {
     defaultIntegrationConfig,
+    getHookConfigStructureError,
     getIntegrationConfigPath,
     INTEGRATION_AGENTS,
     isLegacyIntegrationCommand,
@@ -41,9 +42,13 @@ function getManagedHookStatus(agent) {
         if (!ok)
             return {state: 'error', message: 'Não foi possível ler a configuração do agente.'};
         const config = JSON.parse(new TextDecoder().decode(bytes));
-        if (!config || typeof config !== 'object' || Array.isArray(config) ||
-            (config.hooks !== undefined && (!config.hooks || typeof config.hooks !== 'object' || Array.isArray(config.hooks))))
+        if (!config || typeof config !== 'object' || Array.isArray(config))
             return {state: 'error', message: 'Estrutura inválida na configuração do agente.'};
+        if (config.hooks !== undefined) {
+            const structureError = getHookConfigStructureError(config.hooks);
+            if (structureError)
+                return {state: 'error', message: `Configuração de hooks inválida: ${structureError}`};
+        }
         const configured = Object.values(config.hooks ?? {}).some(groups => Array.isArray(groups) &&
             groups.some(group => Array.isArray(group?.hooks) && group.hooks.some(hook =>
                 typeof hook?.command === 'string' && (hook.command.startsWith(`LUMEN_HOOK_ID=${agent.id} `) ||

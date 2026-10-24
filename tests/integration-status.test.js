@@ -4,6 +4,7 @@ import {
     shouldRecordLastEvent,
     shouldShowIntegrationTestFeedback,
 } from '../gnome-extension/lib/integration-status.js';
+import {getHookConfigStructureError} from '../gnome-extension/lib/integration-config.js';
 
 function assert(condition, message) {
     if (!condition)
@@ -18,6 +19,13 @@ assert(getLastEventSettingKey('claude_code') === 'last-event-claude-code',
     'Claude events map to the Claude last-event setting');
 assert(getLastEventSettingKey('simulator') === null,
     'unmanaged sources do not create integration status settings');
+
+assert(getHookConfigStructureError({PreToolUse: {hooks: []}}) !== null,
+    'a hook event whose value is not a group array is reported as malformed');
+assert(getHookConfigStructureError({PreToolUse: [{hooks: {}}]}) !== null,
+    'a hook group whose hooks property is not an array is reported as malformed');
+assert(getHookConfigStructureError({PreToolUse: [{hooks: []}]}) === null,
+    'valid hook event groups pass structural validation');
 
 for (const state of ['approval_required', 'input_required', 'failed']) {
     assert(!shouldShowIntegrationTestFeedback({state}),
