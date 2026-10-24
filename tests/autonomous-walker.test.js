@@ -126,6 +126,26 @@ assert(offsetPosition.x < offsetEast.x && offsetPosition.y === 100,
 assert(offsetLargestStep <= 13, 'offset monitor layouts never teleport the pet across the shared band');
 offsetWalker.destroy();
 
+const tallWest = {index: 7, x: 0, y: 0, width: 1000, height: 1000};
+const broadUpper = {index: 8, x: 1000, y: 0, width: 1000, height: 600};
+const narrowLower = {index: 9, x: 1000, y: 600, width: 1000, height: 400};
+let multiNeighborPosition = {x: 828, y: 700};
+const multiNeighborWalker = new AutonomousWalker({
+    getPosition: () => multiNeighborPosition,
+    setPosition: (x, y) => multiNeighborPosition = {x, y},
+    getSize: () => ({width: 160, height: 160}),
+    getMonitors: () => [tallWest, broadUpper, narrowLower],
+    schedule: clock.schedule,
+    cancel: clock.cancel,
+    now: () => clock.now,
+    random: () => 0,
+});
+multiNeighborWalker.start({durationMs: 1500, speed: 200, direction: 'right'});
+clock.advance(1200);
+assert(multiNeighborPosition.x > narrowLower.x && multiNeighborPosition.y === 700,
+    'walker filters unusable neighbors and crosses into a lower monitor with a valid shared span');
+multiNeighborWalker.destroy();
+
 const shortWest = {index: 5, x: 0, y: 0, width: 1000, height: 400};
 const shortEast = {index: 6, x: 1000, y: 350, width: 1000, height: 400};
 let shortPosition = {x: 840, y: 100};

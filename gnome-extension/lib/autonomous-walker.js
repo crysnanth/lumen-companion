@@ -1,5 +1,5 @@
 import GLib from 'gi://GLib';
-import {clampPosition, findAdjacentMonitor, findMonitorForPet, getWorkArea} from './monitor-geometry.js';
+import {clampPosition, findAdjacentMonitors, findMonitorForPet, getWorkArea} from './monitor-geometry.js';
 
 const STEP_MS = 60;
 const DEFAULT_SPEED = 115;
@@ -51,7 +51,8 @@ export class AutonomousWalker {
         this._roamAll = roamAll;
         this._monitor = findMonitorForPet(this._getPosition(), this._getSize(), monitors);
         const available = roamAll
-            ? ['left', 'right', 'up', 'down'].filter(side => findAdjacentMonitor(this._monitor, side, monitors))
+            ? ['left', 'right', 'up', 'down'].filter(side =>
+                findAdjacentMonitors(this._monitor, side, monitors).length > 0)
             : [];
         const choices = available.length ? available : ['left', 'right'];
         this._direction = direction ?? choices[Math.floor(this._random() * choices.length)];
@@ -112,12 +113,16 @@ export class AutonomousWalker {
             : Math.max(workArea.y, workArea.y + workArea.height - size.height);
         const next = (horizontal ? position.x : position.y) + sign * this._speed * STEP_MS / 1000;
         if (next < min || next > max) {
-            let adjacent = this._roamAll ? findAdjacentMonitor(this._monitor, this._direction, monitors) : null;
+            const adjacent = this._roamAll
+                ? findAdjacentMonitors(this._monitor, this._direction, monitors).find(candidate => {
+                    const candidateArea = getWorkArea(candidate,
+                        this._getWorkAreaForMonitor?.(candidate.index) ?? null, 12);
+                    return hasUsableSharedSpan(workArea, candidateArea, position, size, horizontal);
+                }) ?? null
+                : null;
             const nextArea = adjacent
                 ? getWorkArea(adjacent, this._getWorkAreaForMonitor?.(adjacent.index) ?? null, 12)
                 : null;
-            if (adjacent && !hasUsableSharedSpan(workArea, nextArea, position, size, horizontal))
-                adjacent = null;
             if (adjacent) {
                 const nextX = horizontal ? next : position.x;
                 const nextY = horizontal ? position.y : next;

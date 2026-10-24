@@ -1,4 +1,4 @@
-import {clampPosition, findAdjacentMonitor, findMonitorForPet, getWorkArea} from '../gnome-extension/lib/monitor-geometry.js';
+import {clampPosition, findAdjacentMonitor, findAdjacentMonitors, findMonitorForPet, getWorkArea} from '../gnome-extension/lib/monitor-geometry.js';
 
 function assert(condition, message) {
     if (!condition)
@@ -18,6 +18,11 @@ assert(findAdjacentMonitor(above, 'down', [left, above]) === left,
     'vertical monitor adjacency works in both directions');
 assert(findAdjacentMonitor(left, 1, [left, {x: 20, y: 0, width: 100, height: 100}]) === null,
     'a physical gap is not treated as an adjacent edge');
+const upperRight = {index: 3, x: 1000, y: 0, width: 1000, height: 600};
+const lowerRight = {index: 4, x: 1000, y: 600, width: 1000, height: 400};
+assert(findAdjacentMonitors({x: 0, y: 0, width: 1000, height: 1000}, 'right',
+    [{x: 0, y: 0, width: 1000, height: 1000}, upperRight, lowerRight])[0] === upperRight,
+    'all adjacent monitors are kept in descending overlap order for later fit filtering');
 
 const size = {width: 300, height: 200};
 const area = getWorkArea(left, {x: -1920, y: 30, width: 1920, height: 1020}, 10);

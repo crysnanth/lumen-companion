@@ -9,6 +9,7 @@ test_files=(
     tests/animation-controller.test.js
     tests/autonomous-walker.test.js
     tests/behavior-controller.test.js
+    tests/bubble-position.test.js
     tests/claude-hook-mapper.test.js
     tests/codex-hook-mapper.test.js
     tests/config-store.test.js

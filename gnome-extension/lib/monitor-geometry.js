@@ -37,6 +37,10 @@ export function findMonitorForPet(position, size, monitors) {
 }
 
 export function findAdjacentMonitor(current, direction, monitors, inset = 0) {
+    return findAdjacentMonitors(current, direction, monitors, inset)[0] ?? null;
+}
+
+export function findAdjacentMonitors(current, direction, monitors, inset = 0) {
     const side = direction === -1 ? 'left' : direction === 1 ? 'right' : direction;
     const horizontal = side === 'left' || side === 'right';
     const edge = horizontal
@@ -54,12 +58,10 @@ export function findAdjacentMonitor(current, direction, monitors, inset = 0) {
         return matchesEdge && Math.min(current.x + current.width, monitor.x + monitor.width) >
             Math.max(current.x, monitor.x);
     });
-    if (!candidates.length)
-        return null;
-    return candidates.reduce((best, monitor) => {
+    return candidates.map(monitor => {
         const overlap = horizontal
             ? Math.min(current.y + current.height, monitor.y + monitor.height) - Math.max(current.y, monitor.y)
             : Math.min(current.x + current.width, monitor.x + monitor.width) - Math.max(current.x, monitor.x);
-        return !best || overlap > best.overlap ? {monitor, overlap} : best;
-    }, null).monitor;
+        return {monitor, overlap};
+    }).sort((a, b) => b.overlap - a.overlap).map(candidate => candidate.monitor);
 }

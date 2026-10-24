@@ -34,6 +34,8 @@ assert(controller.getSnapshot().state === 'approval_required', 'approval is visi
 assert(behaviorStates.at(-1) === 'approval_required', 'agent attention is sent to the behavior arbiter immediately');
 assert(calls.some(call => call[0] === 'show' && call[1].includes('Codex CLI')),
     'agent attention identifies the source in the persistent bubble');
+assert(calls.find(call => call[0] === 'show')[5].includes('responda no app original'),
+    'approval attention tells the user to reply in the original app');
 const snapshot = controller.reconcileSources(['claude_code']);
 assert(snapshot.state === 'idle' && controller.getSnapshot().state === 'idle',
     'reconciling away from Codex clears its retained task state');
@@ -55,6 +57,14 @@ const completionBubble = calls.filter(call => call[0] === 'show').at(-1);
 assert(completionBubble[2] === completionText && completionBubble[5].includes(longSessionId),
     'long session metadata does not truncate or hide the complete completion question/message');
 assert(!completionBubble[2].includes(longSessionId), 'session metadata is not prefixed into the message text');
+assert(completionBubble[5] === `Sessão ${longSessionId}` && !completionBubble[5].includes('responda'),
+    'completed tasks show neutral session metadata without asking for a response');
+
+controller.handleEvent({...event, session_id: longSessionId, task_id: 'failed', kind: 'task_failed',
+    timestamp: '2026-10-24T12:00:04Z', title: 'Falhou', message: 'Falha no agente'});
+const failureBubble = calls.filter(call => call[0] === 'show').at(-1);
+assert(failureBubble[5] === `Sessão ${longSessionId}`,
+    'failed tasks use neutral session metadata');
 
 const expiryCalls = [];
 const expiryView = {

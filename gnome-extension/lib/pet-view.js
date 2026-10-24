@@ -7,6 +7,7 @@ import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
 import {AnimationController} from './animation-controller.js';
 import {ANIMATION_MANIFEST} from './animation-manifest.js';
+import {getBubblePlacement} from './bubble-position.js';
 import {PetPanel} from './pet-panel.js';
 import {SpeechBubble} from './speech-bubble.js';
 const BASE_DISPLAY_SIZE = 128;
@@ -40,6 +41,7 @@ export class PetView {
         this._bubbleChromeAdded = false;
         this._bubbleControlsChromeAdded = false;
         this._bubbleTrackFullscreen = false;
+        this._bubbleMonitor = null;
         this._agentState = 'idle';
         this._autonomousAction = null;
         this._panel = new PetPanel(this._viewWidth);
@@ -200,6 +202,7 @@ export class PetView {
         this.clickTarget.set_position(
             x + this._spriteX + (this._displaySize - this._clickTargetSize) / 2,
             y + SPRITE_Y + (this._displaySize - this._clickTargetSize) / 2);
+        this._positionBubble();
     }
 
     updatePanel(snapshot) {
@@ -282,34 +285,66 @@ export class PetView {
             this._hideBubble();
             return;
         }
-        const hasActions = this._bubble.show(this._message);
-        const [actorX, actorY] = this.actor.get_position();
-        const monitors = Main.layoutManager.monitors;
-        const centerX = actorX + this._viewWidth / 2;
-        const centerY = actorY + this._viewHeight / 2;
-        const monitor = monitors.find(item => centerX >= item.x && centerX < item.x + item.width &&
-            centerY >= item.y && centerY < item.y + item.height) ?? Main.layoutManager.primaryMonitor;
-        if (!monitor)
+        this._bubble.show(this._message);
+        this._layoutBubble();
+    }
+
+    _layoutBubble() {
+        if (this._panel.actor.visible || !this._message)
             return;
-        const bubbleWidth = Math.max(80, Math.min(280, monitor.width - 16));
-        this._bubble.setWidth(bubbleWidth);
-        const [, contentHeight] = this._bubble.actor.get_preferred_height(bubbleWidth);
-        const [, controlsHeight] = this._bubble.controls.get_preferred_height(bubbleWidth - 16);
-        const bubbleHeight = Math.max(72, contentHeight + (hasActions ? Math.max(38, controlsHeight + 8) : 0));
+
+        const hasActions = this._bubble.controls.visible;
+        const [petX, petY] = this.actor.get_position();
+        const monitors = Main.layoutManager.monitors;
+        const placement = getBubblePlacement({
+            petPosition: {x: petX, y: petY},
+            petSize: {width: this._viewWidth, height: this._viewHeight},
+            bubbleSize: {width: 280, height: 72},
+            monitors,
+            primaryMonitor: Main.layoutManager.primaryMonitor,
+            hasActions,
+        });
+        if (!placement)
+            return;
+
+        this._bubble.setWidth(placement.width);
+        const [, contentHeight] = this._bubble.actor.get_preferred_height(placement.width);
+        const [, controlsHeight] = this._bubble.controls.get_preferred_height(placement.width - 16);
+        const bubbleHeight = Math.max(72,
+            contentHeight + (hasActions ? Math.max(38, controlsHeight + 8) : 0));
         this._bubble.actor.set_height(bubbleHeight);
-        const globalX = Math.min(Math.max(actorX + (this._viewWidth - bubbleWidth) / 2, monitor.x + 8),
-            monitor.x + monitor.width - bubbleWidth - 8);
-        let globalY = actorY - bubbleHeight - 8;
-        if (globalY < monitor.y + 8)
-            globalY = Math.min(actorY + this._viewHeight + 8, monitor.y + monitor.height - bubbleHeight - 8);
-        const controlsY = globalY + bubbleHeight - Math.max(30, controlsHeight) - 8;
-        this._bubble.setPosition(globalX, globalY, controlsY);
+        this._bubbleMonitor = placement.monitor;
+        this._positionBubble(controlsHeight, placement.monitor);
         this._syncBubbleChrome(hasActions);
     }
 
+    _positionBubble(knownControlsHeight = null, knownMonitor = null) {
+        if (!this._message || this._panel.actor.visible)
+            return;
+
+        const [actorX, actorY] = this.actor.get_position();
+        const monitors = Main.layoutManager.monitors;
+        const placement = getBubblePlacement({
+            petPosition: {x: actorX, y: actorY},
+            petSize: {width: this._viewWidth, height: this._viewHeight},
+            bubbleSize: {width: this._bubble.actor.get_width(), height: this._bubble.actor.get_height()},
+            monitors,
+            primaryMonitor: knownMonitor ?? Main.layoutManager.primaryMonitor,
+            controlsHeight: knownControlsHeight ?? this._bubble.controls.get_height(),
+            hasActions: this._bubble.controls.visible,
+        });
+        if (!placement)
+            return;
+        if (placement.monitor !== this._bubbleMonitor) {
+            this._layoutBubble();
+            return;
+        }
+        this._bubble.setPosition(placement.x, placement.y, placement.controlsY);
+    }
+
     refreshBubbleFullscreenTracking() {
-        if (this._message)
-            this._renderMessage();
+        if (this._message && this._bubbleChromeAdded)
+            this._syncBubbleChrome(this._bubble.controls.visible);
     }
 
     _syncBubbleChrome(hasActions) {

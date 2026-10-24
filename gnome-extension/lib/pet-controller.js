@@ -81,9 +81,10 @@ export class PetController {
                 item.task_id === result.task_id && item.session_id === result.session_id);
             const sessionId = result.session_id ?? task?.session_id;
             const title = source ? `${sourceName} — ${result.title}` : result.title;
-            const metadata = sessionId
-                ? `Sessão ${sessionId} · responda no app original.`
-                : '';
+            const attentionNeeded = result.state === 'approval_required' || result.state === 'input_required';
+            let metadata = '';
+            if (sessionId)
+                metadata = attentionNeeded ? `Sessão ${sessionId} · responda no app original.` : `Sessão ${sessionId}`;
             this._view.showMessage(title, result.message, result.persistent, [], metadata);
         } else {
             this._view.hideMessage();
