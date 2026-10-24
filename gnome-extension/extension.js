@@ -8,6 +8,7 @@ import {AutonomousWalker} from './lib/autonomous-walker.js';
 import {DialogueController} from './lib/dialogue-controller.js';
 import {SoundController} from './lib/sound-controller.js';
 import {IntegrationConfigWatcher} from './lib/integration-config.js';
+import {getPositionPersistence} from './lib/position-store.js';
 import {
     getLastEventSettingKey,
     shouldRecordLastEvent,
@@ -57,6 +58,8 @@ export default class LumenPetExtension extends Extension {
             getSize: () => ({width: this._pet.actor.width, height: this._pet.actor.height}),
             getMonitors: () => Main.layoutManager.monitors,
             getWorkAreaForMonitor: index => Main.layoutManager.getWorkAreaForMonitor?.(index) ?? null,
+            canEnterMonitor: monitor => !this._settings.get_boolean('hide-in-fullscreen') ||
+                !global.display.get_monitor_in_fullscreen(monitor.index),
             onDirectionChanged: direction => {
                 if (this._currentBehavior?.id === 'walk')
                     this._pet?.setAutonomousAction({...this._currentBehavior,
@@ -64,7 +67,7 @@ export default class LumenPetExtension extends Extension {
             },
             onStopped: () => {
                 if (this._pet?.actor)
-                    this._savePosition(...this._pet.actor.get_position());
+                    this._persistPosition(...this._pet.actor.get_position());
             },
         });
         this._dialogue = new DialogueController();
@@ -436,29 +439,32 @@ export default class LumenPetExtension extends Extension {
         if (!this._settings || !Main.layoutManager.monitors.length || !this._pet)
             return;
 
-        const centerX = x + this._pet.actor.width / 2;
-        const centerY = y + this._pet.actor.height / 2;
         const monitors = Main.layoutManager.monitors;
-        let monitor = monitors.find(item =>
-            centerX >= item.x && centerX < item.x + item.width &&
-            centerY >= item.y && centerY < item.y + item.height);
+        const size = {width: this._pet.actor.width, height: this._pet.actor.height};
+        let saved = getPositionPersistence({x, y}, size, monitors);
+        if (!saved)
+            return;
 
-        if (!monitor) {
-            // If released beyond a screen edge, use the nearest monitor and
-            // bring the full pet back inside its bounds.
-            monitor = monitors.reduce((nearest, item) => {
-                const dx = Math.max(item.x - centerX, 0, centerX - (item.x + item.width));
-                const dy = Math.max(item.y - centerY, 0, centerY - (item.y + item.height));
-                const distance = dx * dx + dy * dy;
-                return distance < nearest.distance ? {item, distance} : nearest;
-            }, {item: monitors[0], distance: Infinity}).item;
+        if (!saved.centerOnMonitor) {
+            const monitor = saved.monitor;
+            x = clamp(x, monitor.x, monitor.x + monitor.width - size.width);
+            y = clamp(y, monitor.y, monitor.y + monitor.height - size.height);
+            this._pet.setPosition(x, y);
+            saved = getPositionPersistence({x, y}, size, monitors);
         }
 
-        const boundedX = clamp(x, monitor.x, monitor.x + monitor.width - this._pet.actor.width);
-        const boundedY = clamp(y, monitor.y, monitor.y + monitor.height - this._pet.actor.height);
-        this._pet.setPosition(boundedX, boundedY);
-        this._settings.set_int('position-monitor', monitor.index);
-        this._settings.set_int('position-x', Math.round(boundedX - monitor.x));
-        this._settings.set_int('position-y', Math.round(boundedY - monitor.y));
+        this._persistPosition(x, y);
+    }
+
+    _persistPosition(x, y) {
+        if (!this._settings || !Main.layoutManager.monitors.length || !this._pet)
+            return;
+        const saved = getPositionPersistence({x, y},
+            {width: this._pet.actor.width, height: this._pet.actor.height}, Main.layoutManager.monitors);
+        if (!saved)
+            return;
+        this._settings.set_int('position-monitor', saved.monitor.index);
+        this._settings.set_int('position-x', saved.x);
+        this._settings.set_int('position-y', saved.y);
     }
 }

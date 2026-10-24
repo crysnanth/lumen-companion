@@ -21,6 +21,7 @@ test_files=(
     tests/monitor-geometry.test.js
     tests/pet-controller.test.js
     tests/pet-panel-formatter.test.js
+    tests/position-store.test.js
     tests/sound-controller.test.js
     tests/state-machine.test.js
 )

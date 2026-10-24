@@ -1,4 +1,5 @@
 import {AutonomousWalker} from '../gnome-extension/lib/autonomous-walker.js';
+import {getPositionPersistence} from '../gnome-extension/lib/position-store.js';
 
 function assert(condition, message) {
     if (!condition)
@@ -145,6 +146,56 @@ clock.advance(1200);
 assert(multiNeighborPosition.x > narrowLower.x && multiNeighborPosition.y === 700,
     'walker filters unusable neighbors and crosses into a lower monitor with a valid shared span');
 multiNeighborWalker.destroy();
+
+const stopLeft = {index: 10, x: 0, y: 0, width: 1000, height: 800};
+const stopRight = {index: 11, x: 1000, y: 0, width: 1000, height: 800};
+const stopMonitors = [stopLeft, stopRight];
+let stopPosition = {x: 744, y: 200};
+let savedStopPosition = null;
+const stopDuringCrossingWalker = new AutonomousWalker({
+    getPosition: () => stopPosition,
+    setPosition: (x, y) => stopPosition = {x, y},
+    getSize: () => ({width: 256, height: 160}),
+    getMonitors: () => stopMonitors,
+    onStopped: () => {
+        savedStopPosition = getPositionPersistence(stopPosition, {width: 256, height: 160}, stopMonitors);
+    },
+    schedule: clock.schedule,
+    cancel: clock.cancel,
+    now: () => clock.now,
+    random: () => 0,
+});
+stopDuringCrossingWalker.start({durationMs: 3000, speed: 200, direction: 'right'});
+clock.advance(600);
+assert(stopPosition.x === 864, 'the pet can occupy the shared seam during a monitor transition');
+stopDuringCrossingWalker.stop();
+assert(stopPosition.x === 864 && savedStopPosition.monitor === stopLeft && savedStopPosition.x === 864,
+    'canceling during a transition persists the current coordinates without clamping or moving the pet');
+stopDuringCrossingWalker.destroy();
+
+let fullscreenPosition = {x: 840, y: 100};
+let checkedFullscreenMonitor = false;
+const fullscreenEast = {index: 12, x: 1000, y: 0, width: 1000, height: 800};
+const fullscreenGuardWalker = new AutonomousWalker({
+    getPosition: () => fullscreenPosition,
+    setPosition: (x, y) => fullscreenPosition = {x, y},
+    getSize: () => ({width: 160, height: 160}),
+    getMonitors: () => [west, fullscreenEast],
+    canEnterMonitor: candidate => {
+        if (candidate === fullscreenEast)
+            checkedFullscreenMonitor = true;
+        return candidate !== fullscreenEast;
+    },
+    schedule: clock.schedule,
+    cancel: clock.cancel,
+    now: () => clock.now,
+    random: () => 0,
+});
+fullscreenGuardWalker.start({durationMs: 300, speed: 200, direction: 'right'});
+clock.advance(120);
+assert(checkedFullscreenMonitor && fullscreenPosition.x < fullscreenEast.x,
+    'walker reflects instead of entering an adjacent monitor already marked fullscreen');
+fullscreenGuardWalker.destroy();
 
 const shortWest = {index: 5, x: 0, y: 0, width: 1000, height: 400};
 const shortEast = {index: 6, x: 1000, y: 350, width: 1000, height: 400};

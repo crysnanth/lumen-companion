@@ -16,7 +16,8 @@ function hasUsableSharedSpan(currentArea, nextArea, position, size, horizontal) 
 
 /** Moves only while active; no timer is kept while paused or at rest. */
 export class AutonomousWalker {
-    constructor({getPosition, setPosition, getSize, getMonitors, getWorkAreaForMonitor, onStopped = null,
+    constructor({getPosition, setPosition, getSize, getMonitors, getWorkAreaForMonitor, canEnterMonitor = null,
+        onStopped = null,
         onDirectionChanged = null,
         schedule = (callback, delay) => GLib.timeout_add(GLib.PRIORITY_DEFAULT, delay, () => callback()),
         cancel = id => GLib.Source.remove(id), random = Math.random,
@@ -26,6 +27,7 @@ export class AutonomousWalker {
         this._getSize = getSize;
         this._getMonitors = getMonitors;
         this._getWorkAreaForMonitor = getWorkAreaForMonitor;
+        this._canEnterMonitor = canEnterMonitor;
         this._onStopped = onStopped;
         this._onDirectionChanged = onDirectionChanged;
         this._schedule = schedule;
@@ -117,7 +119,8 @@ export class AutonomousWalker {
                 ? findAdjacentMonitors(this._monitor, this._direction, monitors).find(candidate => {
                     const candidateArea = getWorkArea(candidate,
                         this._getWorkAreaForMonitor?.(candidate.index) ?? null, 12);
-                    return hasUsableSharedSpan(workArea, candidateArea, position, size, horizontal);
+                    return hasUsableSharedSpan(workArea, candidateArea, position, size, horizontal) &&
+                        (this._canEnterMonitor?.(candidate) ?? true);
                 }) ?? null
                 : null;
             const nextArea = adjacent
