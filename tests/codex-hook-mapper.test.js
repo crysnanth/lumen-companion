@@ -1,10 +1,43 @@
 import {mapCodexHookEvent} from '../integrations/codex/hook-mapper.js';
+import {getAgentAdapter} from '../integrations/catalog.js';
 import {PetStateMachine} from '../gnome-extension/lib/state-machine.js';
 
 function assert(condition, message) {
     if (!condition)
         throw new Error(`FAIL: ${message}`);
 }
+
+const codexAdapter = getAgentAdapter('codex_cli');
+const adapterCases = [
+    ['UserPromptSubmit', 'task_started'],
+    ['PermissionRequest', 'approval_required'],
+    ['PreToolUse', 'working'],
+    ['Interrupt', 'task_interrupted'],
+    ['Stop', 'idle'],
+];
+for (const [hook_event_name, kind] of adapterCases) {
+    const event = codexAdapter.mapEvent({
+        hook_event_name,
+        session_id: 'adapter-session',
+        turn_id: 'adapter-turn',
+    });
+    assert(event?.kind === kind, `${hook_event_name} maps through the registered v1 adapter`);
+    assert(event.source === 'codex_cli' && event.session_id === 'adapter-session' &&
+        event.task_id === 'adapter-turn' && Number.isFinite(Date.parse(event.timestamp)),
+    `${hook_event_name} preserves the v1 identity and timestamp fields`);
+}
+const adapterFallback = codexAdapter.mapEvent({
+    hook_event_name: 'UserPromptSubmit', session_id: 'fallback-session',
+    prompt: 'private prompt', tool_input: {command: 'private command'},
+});
+assert(adapterFallback?.task_id === 'fallback-session', 'adapter falls back to session_id when turn_id is absent');
+assert(!JSON.stringify(adapterFallback).includes('private prompt') &&
+    !JSON.stringify(adapterFallback).includes('private command'),
+'adapter discards prompt and tool_input content');
+assert(codexAdapter.mapEvent({hook_event_name: 'UserPromptSubmit'}) === null,
+    'adapter rejects an event without session_id');
+assert(codexAdapter.mapEvent({hook_event_name: 'Unknown', session_id: 'adapter-session'}) === null,
+    'adapter ignores unsupported hook events');
 
 const started = mapCodexHookEvent({
     hook_event_name: 'UserPromptSubmit',
