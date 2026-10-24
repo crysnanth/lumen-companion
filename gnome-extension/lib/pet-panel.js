@@ -1,24 +1,14 @@
 import St from 'gi://St';
-
-const STATE_LABELS = {
-    idle: 'Ocioso',
-    working: 'Trabalhando',
-    thinking: 'Pensando',
-    approval_required: 'Aguardando permissão',
-    input_required: 'Aguardando resposta',
-    completed: 'Concluído',
-    failed: 'Erro',
-    sleeping: 'Dormindo',
-};
-
-const MAX_TASK_TEXT_LENGTH = 30;
+import {formatPanelSnapshot} from './pet-panel-formatter.js';
 
 export class PetPanel {
     constructor(width) {
+        this._width = width;
+        this._lastSnapshot = null;
         this.actor = new St.Label({
             text: '',
             width,
-            height: 72,
+            height: 112,
             style: [
                 'color: #F4F7FB',
                 'background-color: rgba(7, 21, 29, 0.96)',
@@ -38,27 +28,16 @@ export class PetPanel {
     }
 
     update(snapshot) {
-        const state = snapshot?.state ?? 'idle';
-        const agent = snapshot?.source === 'codex' || !snapshot?.source
-            ? 'Codex CLI'
-            : snapshot.source;
-        const taskText = state === 'idle'
-            ? 'Nenhuma tarefa ativa'
-            : snapshot.message || snapshot.title || 'Atividade em andamento';
-        const taskCharacters = Array.from(taskText);
-        const taskSummary = taskCharacters.slice(0, MAX_TASK_TEXT_LENGTH).join('');
-        const suffix = taskCharacters.length > MAX_TASK_TEXT_LENGTH ? '…' : '';
-
-        this.actor.text = [
-            'Lúmen · Monitor de tarefas',
-            `Agente: ${agent}`,
-            `Estado: ${STATE_LABELS[state] ?? 'Desconhecido'}`,
-            `Tarefa: ${taskSummary}${suffix}`,
-        ].join('\n');
+        this._lastSnapshot = snapshot;
+        const formatted = formatPanelSnapshot(snapshot, this._width);
+        this.actor.text = formatted.text;
+        this.actor.set_height(formatted.height);
     }
 
     setWidth(width) {
+        this._width = width;
         this.actor.set_width(width);
+        this.update(this._lastSnapshot);
     }
 
     destroy() {

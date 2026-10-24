@@ -1,4 +1,4 @@
-import {isEventPayloadWithinLimit, MAX_EVENT_BYTES, PetStateMachine} from '../gnome-extension/lib/state-machine.js';
+import {FAILED_TASK_TTL_MS, isEventPayloadWithinLimit, MAX_EVENT_BYTES, PetStateMachine} from '../gnome-extension/lib/state-machine.js';
 
 function assert(condition, message) {
     if (!condition)
@@ -110,6 +110,51 @@ pendingMachine.handleEvent(event('approval_required', 'task-awaits-approval', 1)
 pendingMachine.handleEvent(event('task_started', 'task-finishes-under-approval', 2));
 result = pendingMachine.handleEvent(event('task_completed', 'task-finishes-under-approval', 3));
 assert(result.state === 'approval_required', 'completion animation does not hide a pending approval');
+
+const concurrentSessionsMachine = new PetStateMachine();
+concurrentSessionsMachine.handleEvent(event('working', 'same-task-id', 1, {
+    source: 'codex_cli', session_id: 'codex-session', message: 'Codex executando',
+}));
+concurrentSessionsMachine.handleEvent(event('working', 'same-task-id', 2, {
+    source: 'claude_code', session_id: 'claude-session', message: 'Claude executando',
+}));
+let concurrentSnapshot = concurrentSessionsMachine.getSnapshot();
+assert(concurrentSnapshot.tasks.length === 2, 'concurrent sessions remain independently visible in the snapshot');
+assert(concurrentSnapshot.tasks[0].source === 'claude_code' && concurrentSnapshot.tasks[1].source === 'codex_cli',
+    'active tasks are ordered by recent activity without merging agent identities');
+assert(concurrentSnapshot.tasks[0].session_id === 'claude-session' &&
+    concurrentSnapshot.tasks[1].session_id === 'codex-session', 'each active task keeps its own session identity');
+concurrentSessionsMachine.handleEvent(event('approval_required', 'approval-task', 3, {
+    source: 'codex_cli', session_id: 'codex-session',
+}));
+result = concurrentSessionsMachine.handleEvent(event('task_completed', 'same-task-id', 4, {
+    source: 'claude_code', session_id: 'claude-session',
+}));
+assert(result.state === 'approval_required' && concurrentSessionsMachine.getSnapshot().tasks.length === 2,
+    'completion in one session cannot hide another session approval or remove its task');
+result = concurrentSessionsMachine.handleEvent(event('task_interrupted', 'same-task-id', 5, {
+    source: 'codex_cli', session_id: 'codex-session',
+}));
+assert(result.state === 'approval_required' && result.source === 'codex_cli',
+    'ending another task leaves the higher priority request selected');
+
+const staleFailureMachine = new PetStateMachine();
+staleFailureMachine.handleEvent(event('task_failed', 'stale-failure', 1, {session_id: 'failed-session'}));
+staleFailureMachine.handleEvent(event('working', 'still-running', 2, {
+    source: 'claude_code', session_id: 'active-session',
+}));
+let staleResult = staleFailureMachine.expireStale(Date.now() + FAILED_TASK_TTL_MS);
+assert(staleResult.changed && staleResult.state === 'working' && staleResult.source === 'claude_code',
+    'a stale failure expires while a separate active session remains visible');
+assert(staleFailureMachine.getSnapshot().tasks.length === 1 &&
+    staleFailureMachine.getSnapshot().tasks[0].task_id === 'still-running',
+    'stale cleanup removes only the expired failed task');
+
+const pendingSurvivesStaleCleanupMachine = new PetStateMachine();
+pendingSurvivesStaleCleanupMachine.handleEvent(event('approval_required', 'long-approval', 1));
+staleResult = pendingSurvivesStaleCleanupMachine.expireStale(Date.now() + FAILED_TASK_TTL_MS * 10);
+assert(!staleResult.changed && staleResult.state === 'approval_required',
+    'stale cleanup does not silently dismiss a pending approval');
 
 const boundedMachine = new PetStateMachine();
 result = boundedMachine.handleEvent(event('task_failed', 'task-bounds', 1, {

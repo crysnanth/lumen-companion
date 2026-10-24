@@ -16,6 +16,7 @@ const MAX_IDENTIFIER_LENGTH = 128;
 const MAX_DEDUPE_KEYS = 256;
 const MAX_TASK_TIMESTAMPS = 512;
 const MAX_ACTIVE_TASKS = 512;
+export const FAILED_TASK_TTL_MS = 5 * 60 * 1000;
 export const MAX_EVENT_BYTES = 4096;
 const DEFAULT_TITLES = {
     approval_required: 'Permissão necessária',
@@ -71,7 +72,8 @@ export function validateEvent(event) {
 }
 
 export class PetStateMachine {
-    constructor() {
+    constructor(clock = () => Date.now()) {
+        this._clock = clock;
         this._tasks = new Map();
         this._lastTimestampByTask = new Map();
         this._dedupeKeys = new Set();
@@ -133,6 +135,7 @@ export class PetStateMachine {
                 title: cleanText(event.title, MAX_TITLE_LENGTH) || DEFAULT_TITLES[event.kind] || '',
                 message: cleanText(event.message, MAX_MESSAGE_LENGTH),
                 timestamp,
+                receivedAt: this._clock(),
             });
         }
 
@@ -196,11 +199,9 @@ export class PetStateMachine {
 
     getSnapshot() {
         let selected = null;
-        for (const task of this._tasks.values()) {
-            if (!selected || task.priority > selected.priority ||
-                (task.priority === selected.priority && task.timestamp > selected.timestamp))
-                selected = task;
-        }
+        const tasks = [...this._tasks.values()]
+            .sort((left, right) => right.priority - left.priority || right.timestamp - left.timestamp);
+        selected = tasks[0] ?? null;
 
         if (!selected) {
             return {
@@ -212,6 +213,7 @@ export class PetStateMachine {
                 task_id: null,
                 source: null,
                 priority: 10,
+                tasks: [],
             };
         }
 
@@ -224,7 +226,34 @@ export class PetStateMachine {
             task_id: selected.task_id,
             source: selected.source,
             priority: selected.priority,
+            tasks: tasks.map(task => ({
+                source: task.source,
+                session_id: task.session_id,
+                task_id: task.task_id,
+                state: task.state,
+                title: task.title,
+                message: task.message,
+                priority: task.priority,
+                timestamp: task.timestamp,
+            })),
         };
+    }
+
+    /** Drop old failures so a missed terminal hook cannot leave a permanent alert. */
+    expireStale(now = this._clock()) {
+        const previousSize = this._tasks.size;
+        this._pruneStaleTasks(now);
+        return {
+            changed: this._tasks.size !== previousSize,
+            ...this.getSnapshot(),
+        };
+    }
+
+    _pruneStaleTasks(now) {
+        for (const [key, task] of this._tasks) {
+            if (task.state === 'failed' && now - task.receivedAt >= FAILED_TASK_TTL_MS)
+                this._tasks.delete(key);
+        }
     }
 
     _rememberEvent(eventKey) {
