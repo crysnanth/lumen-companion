@@ -1,5 +1,6 @@
 import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
+import {isLegacyIntegrationCommand} from '../../gnome-extension/lib/integration-config.js';
 
 const INTEGRATIONS = Object.freeze({
     codex_cli: {
@@ -83,25 +84,10 @@ function managedPrefix(id) {
     return `LUMEN_HOOK_ID=${id} `;
 }
 
-function isLegacyLumenCommand(command, integration) {
-    // Before the installer added ownership markers, the published hook fragments
-    // invoked these dedicated adapter modules directly through GJS.
-    // Only migrate the exact, standalone command form shipped before ownership
-    // markers existed. Composite shell commands and extra arguments are ambiguous.
-    const invocation = command.match(/^(?:'([^']+)'|"([^"]+)"|([^\s]+))\s+-m\s+(?:'([^']+)'|"([^"]+)"|([^\s]+))$/);
-    if (!invocation)
-        return false;
-    const executable = invocation[1] ?? invocation[2] ?? invocation[3];
-    const modulePath = invocation[4] ?? invocation[5] ?? invocation[6];
-    const expectedSuffix = `/integrations/${integration.adapter}`;
-    return GLib.path_get_basename(executable) === 'gjs'
-        && (modulePath.endsWith(expectedSuffix) || modulePath === `integrations/${integration.adapter}`);
-}
-
-function isManagedAction(action, id, integration) {
+function isManagedAction(action, id) {
     if (!isObject(action) || typeof action.command !== 'string')
         return false;
-    return action.command.startsWith(managedPrefix(id)) || isLegacyLumenCommand(action.command, integration);
+    return action.command.startsWith(managedPrefix(id)) || isLegacyIntegrationCommand(action.command, id);
 }
 
 function removeManagedHooks(config, id, integration) {
@@ -114,7 +100,7 @@ function removeManagedHooks(config, id, integration) {
         config.hooks[event] = groups.flatMap(group => {
             if (!isObject(group) || !Array.isArray(group.hooks))
                 throw new Error(`O grupo de hooks "${event}" não é válido; nenhuma alteração foi gravada.`);
-            const remaining = group.hooks.filter(action => !isManagedAction(action, id, integration));
+            const remaining = group.hooks.filter(action => !isManagedAction(action, id));
             if (remaining.length === group.hooks.length)
                 return [group];
             removedManagedAction = true;

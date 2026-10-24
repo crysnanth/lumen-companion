@@ -6,6 +6,25 @@ export const INTEGRATION_AGENTS = Object.freeze([
     {id: 'claude_code', name: 'Claude Code'},
 ]);
 
+const LEGACY_ADAPTER_PATHS = Object.freeze({
+    codex_cli: 'integrations/codex/hook-adapter.js',
+    claude_code: 'integrations/claude-code/hook-adapter.js',
+});
+
+/** Match only the standalone legacy GJS command form shipped by Lúmen. */
+export function isLegacyIntegrationCommand(command, integrationId) {
+    const adapterPath = LEGACY_ADAPTER_PATHS[integrationId];
+    if (typeof command !== 'string' || !adapterPath)
+        return false;
+    const invocation = command.match(/^(?:'([^']+)'|"([^"]+)"|([^\s]+))\s+-m\s+(?:'([^']+)'|"([^"]+)"|([^\s]+))$/);
+    if (!invocation)
+        return false;
+    const executable = invocation[1] ?? invocation[2] ?? invocation[3];
+    const modulePath = invocation[4] ?? invocation[5] ?? invocation[6];
+    return GLib.path_get_basename(executable) === 'gjs' &&
+        (modulePath.endsWith(`/${adapterPath}`) || modulePath === adapterPath);
+}
+
 export function getIntegrationConfigPath() {
     const configHome = GLib.getenv('XDG_CONFIG_HOME');
     const base = configHome && configHome.length > 0
@@ -137,7 +156,7 @@ export class IntegrationConfigWatcher {
 
     start() {
         this._ensureMonitor(GLib.getenv('XDG_CONFIG_HOME') || GLib.build_filenamev([GLib.get_home_dir(), '.config']));
-        this._ensureMonitor(GLib.build_filenamev([this._configDirectory(), 'lumen']));
+        this._ensureMonitor(this._configDirectory());
     }
 
     stop() {
@@ -173,16 +192,18 @@ export class IntegrationConfigWatcher {
         if (this._monitors.has(path))
             return;
         const directory = Gio.File.new_for_path(path);
-        if (!directory.query_exists(null))
+        if (!directory.query_exists(null)) {
+            const parentPath = GLib.path_get_dirname(path);
+            if (parentPath !== path)
+                this._ensureMonitor(parentPath);
             return;
+        }
         try {
             const monitor = directory.monitor_directory(Gio.FileMonitorFlags.WATCH_MOVES, null);
-            const id = monitor.connect('changed', (_monitor, file) => {
-                const changedPath = file?.get_path();
-                if (changedPath === getIntegrationConfigPath() ||
-                    changedPath === this._configDirectory() ||
-                    changedPath === GLib.getenv('XDG_CONFIG_HOME') ||
-                    changedPath === GLib.build_filenamev([GLib.get_home_dir(), '.config', 'lumen'])) {
+            const id = monitor.connect('changed', (_monitor, file, otherFile) => {
+                const changedPaths = [file?.get_path(), otherFile?.get_path()];
+                if (changedPaths.includes(getIntegrationConfigPath()) ||
+                    changedPaths.includes(this._configDirectory())) {
                     this._reload();
                 }
                 this._ensureMonitor(this._configDirectory());

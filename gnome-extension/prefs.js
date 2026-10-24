@@ -8,6 +8,7 @@ import {
     defaultIntegrationConfig,
     getIntegrationConfigPath,
     INTEGRATION_AGENTS,
+    isLegacyIntegrationCommand,
     readIntegrationConfig,
     resolveTrackingPreference,
     saveIntegrationConfig,
@@ -41,7 +42,8 @@ function hasManagedHook(agent) {
         const config = JSON.parse(new TextDecoder().decode(bytes));
         return Object.values(config.hooks ?? {}).some(groups => Array.isArray(groups) &&
             groups.some(group => Array.isArray(group?.hooks) && group.hooks.some(hook =>
-                typeof hook?.command === 'string' && hook.command.startsWith(`LUMEN_HOOK_ID=${agent.id} `))));
+                typeof hook?.command === 'string' && (hook.command.startsWith(`LUMEN_HOOK_ID=${agent.id} `) ||
+                    isLegacyIntegrationCommand(hook.command, agent.id)))));
     } catch (_error) {
         return false;
     }
