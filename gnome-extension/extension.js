@@ -34,6 +34,7 @@ export default class LumenPetExtension extends Extension {
         this._sounds = new SoundController(soundPlayer, soundDirectory);
         this._sounds.setEnabled(this._settings.get_boolean('sounds-enabled'));
         this._controller = new PetController(this._pet);
+        this._controller.start();
         this._integrationConfig = new IntegrationConfigWatcher(() => {
             this._controller?.reconcileSources(this._integrationConfig.getActiveSources());
         });
@@ -118,6 +119,7 @@ export default class LumenPetExtension extends Extension {
             this._soundsChangedId = 0;
         }
 
+        this._controller?.destroy();
         this._controller = null;
         this._sounds?.destroy();
         this._sounds = null;

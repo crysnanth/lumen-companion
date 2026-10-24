@@ -44,7 +44,9 @@ O JSON serializado deve ocupar no máximo **4096 bytes em UTF-8**. Caracteres mu
 
 `idle`, `task_completed`, `task_failed` e `task_interrupted` não são equivalentes. `task_completed` declara sucesso; `task_failed` declara falha; `task_interrupted` declara interrupção; `idle` apenas limpa o estado ativo sem afirmar um resultado. Se o hook do agente não fornece o resultado, o adaptador deve enviar `idle`, nunca inferir sucesso.
 
-Quando há várias tarefas, a maior prioridade fica visível; empates favorecem o evento mais recente. Eventos de encerramento afetam somente a combinação `source` + `session_id` + `task_id` correspondente. Estados persistentes como `approval_required` não são substituídos por atividade de prioridade menor; só um evento terminal correlacionado encerra a espera.
+Quando há várias tarefas, a maior prioridade fica visível; empates favorecem o evento mais recente. O painel também lista até quatro tarefas ativas com agente, sessão, estado e resumo, mantendo cada identidade separada. Eventos de encerramento afetam somente a combinação `source` + `session_id` + `task_id` correspondente. Estados persistentes como `approval_required` não são substituídos por atividade de prioridade menor; só um evento terminal correlacionado encerra a espera.
+
+Falhas ficam em destaque por até cinco minutos para cobrir hooks terminais perdidos. Depois desse prazo, a falha é removida automaticamente; atividades, perguntas e permissões não expiram por tempo e continuam aguardando seu evento terminal correlacionado. A preferência de agente definida nas preferências restringe a origem acompanhada; no modo automático, a prioridade do evento escolhe o destaque.
 
 ## Fontes e capacidades dos adaptadores
 

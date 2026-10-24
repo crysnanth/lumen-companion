@@ -12,13 +12,31 @@ const STATE_LABELS = {
 };
 
 const MAX_TASK_TEXT_LENGTH = 30;
+const MAX_SESSION_TEXT_LENGTH = 16;
+const MAX_VISIBLE_TASKS = 4;
+
+function agentName(source) {
+    return ({
+        codex: 'Codex CLI',
+        codex_cli: 'Codex CLI',
+        claude_code: 'Claude Code',
+        simulator: 'Simulador',
+    })[source] ?? source ?? '—';
+}
+
+function shorten(value, limit) {
+    const characters = Array.from(value ?? '');
+    return characters.length > limit
+        ? `${characters.slice(0, limit).join('')}…`
+        : characters.join('');
+}
 
 export class PetPanel {
     constructor(width) {
         this.actor = new St.Label({
             text: '',
             width,
-            height: 72,
+            height: 112,
             style: [
                 'color: #F4F7FB',
                 'background-color: rgba(7, 21, 29, 0.96)',
@@ -39,22 +57,24 @@ export class PetPanel {
 
     update(snapshot) {
         const state = snapshot?.state ?? 'idle';
-        const agent = snapshot?.source === 'codex' || !snapshot?.source
-            ? 'Codex CLI'
-            : snapshot.source;
-        const taskText = state === 'idle'
-            ? 'Nenhuma tarefa ativa'
-            : snapshot.message || snapshot.title || 'Atividade em andamento';
-        const taskCharacters = Array.from(taskText);
-        const taskSummary = taskCharacters.slice(0, MAX_TASK_TEXT_LENGTH).join('');
-        const suffix = taskCharacters.length > MAX_TASK_TEXT_LENGTH ? '…' : '';
+        const tasks = snapshot?.tasks ?? [];
+        const lines = ['Lúmen · Monitor de tarefas'];
 
-        this.actor.text = [
-            'Lúmen · Monitor de tarefas',
-            `Agente: ${agent}`,
-            `Estado: ${STATE_LABELS[state] ?? 'Desconhecido'}`,
-            `Tarefa: ${taskSummary}${suffix}`,
-        ].join('\n');
+        if (tasks.length === 0) {
+            lines.push('Nenhuma tarefa ativa');
+        } else {
+            lines.push(`${tasks.length} tarefa(s) · destaque: ${STATE_LABELS[state] ?? 'Desconhecido'}`);
+            for (const task of tasks.slice(0, MAX_VISIBLE_TASKS)) {
+                const description = task.message || task.title || 'Atividade em andamento';
+                lines.push(`${agentName(task.source)} · ${shorten(task.session_id, MAX_SESSION_TEXT_LENGTH)}`);
+                lines.push(`${STATE_LABELS[task.state] ?? 'Desconhecido'} · ${shorten(description, MAX_TASK_TEXT_LENGTH)}`);
+            }
+            if (tasks.length > MAX_VISIBLE_TASKS)
+                lines.push(`… e mais ${tasks.length - MAX_VISIBLE_TASKS}`);
+        }
+
+        this.actor.text = lines.join('\n');
+        this.actor.set_height(Math.max(56, lines.length * 14 + 14));
     }
 
     setWidth(width) {
