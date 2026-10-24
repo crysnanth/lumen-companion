@@ -1,3 +1,5 @@
+import {MAX_EVENT_PAYLOAD_BYTES} from './event-transport.js';
+
 export const EVENT_KINDS_V1 = Object.freeze([
     'task_started', 'working', 'thinking', 'approval_required', 'input_required',
     'task_failed', 'task_completed', 'task_interrupted', 'idle',
@@ -14,7 +16,7 @@ const OBSERVATION_CAPABILITIES = new Set([
 ]);
 
 /** Build a v1 adapter descriptor. Adapters observe events; control actions are descriptive only. */
-export function defineAgentAdapter({id, name, events, capabilities, controlActions = [], mapEvent}) {
+export function defineAgentAdapter({id, name, events, capabilities, controlActions = [], integrationStatus = 'available', mapEvent}) {
     if (typeof id !== 'string' || !/^[a-z][a-z0-9_]{0,63}$/.test(id))
         throw new TypeError('Adapter id must be a stable lowercase identifier');
     if (typeof name !== 'string' || !name.trim())
@@ -27,13 +29,18 @@ export function defineAgentAdapter({id, name, events, capabilities, controlActio
         throw new TypeError('Adapter must implement mapEvent(input)');
     if (!Array.isArray(controlActions) || controlActions.some(action => typeof action !== 'string' || !action))
         throw new TypeError('Adapter controlActions must be a string array');
+    if (!['available', 'planned'].includes(integrationStatus))
+        throw new TypeError('integrationStatus must be available or planned');
+
+    const declaredCapabilities = Object.freeze([...new Set(capabilities)]);
 
     const descriptor = {
         id,
         name: name.trim(),
         schemaVersion: 1,
+        integrationStatus,
         events: Object.freeze([...new Set(events)]),
-        capabilities: Object.freeze([...new Set(capabilities)]),
+        capabilities: declaredCapabilities,
         controlActions: Object.freeze([...new Set(controlActions)]),
         mapEvent(input) {
             const event = mapEvent(input);
@@ -42,13 +49,22 @@ export function defineAgentAdapter({id, name, events, capabilities, controlActio
             if (!event || typeof event !== 'object' || Array.isArray(event) ||
                 event.schema_version !== 1 || event.source !== id ||
                 !validIdentifier(event.session_id) || !validIdentifier(event.task_id) ||
-                !EVENT_KINDS_V1.includes(event.kind) || !capabilities.includes(event.kind) ||
+                !EVENT_KINDS_V1.includes(event.kind) || !declaredCapabilities.includes(event.kind) ||
                 typeof event.timestamp !== 'string' ||
                 !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/.test(event.timestamp) ||
                 !Number.isFinite(Date.parse(event.timestamp)) ||
                 (event.title !== undefined && typeof event.title !== 'string') ||
                 (event.message !== undefined && typeof event.message !== 'string'))
                 throw new TypeError(`Adapter ${id} returned an event outside contract v1`);
+            let serialized;
+            try {
+                serialized = JSON.stringify(event);
+            } catch (_error) {
+                throw new TypeError(`Adapter ${id} returned an event that cannot be serialized`);
+            }
+            if (typeof serialized !== 'string' ||
+                new TextEncoder().encode(serialized).byteLength > MAX_EVENT_PAYLOAD_BYTES)
+                throw new TypeError(`Adapter ${id} returned an event larger than the v1 payload limit`);
             return event;
         },
     };

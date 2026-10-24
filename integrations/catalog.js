@@ -13,6 +13,7 @@ export const AGENT_ADAPTERS = Object.freeze([
     defineAgentAdapter({
         id: 'claude_code',
         name: 'Claude Code',
+        integrationStatus: 'planned',
         events: ['UserPromptSubmit', 'PermissionRequest', 'PreToolUse', 'Stop', 'StopFailure'],
         capabilities: ['task_started', 'approval_required', 'working', 'idle', 'task_failed'],
         mapEvent: mapClaudeCodeHookEvent,

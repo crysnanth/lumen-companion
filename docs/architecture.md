@@ -12,7 +12,7 @@ O catálogo explícito em `integrations/catalog.js` registra adaptadores sem dep
 
 ## Componentes
 
-- `integrations/catalog.js`: registro consultável de adaptadores Codex CLI e Claude Code.
+- `integrations/catalog.js`: registro consultável de adaptadores Codex CLI (disponível) e Claude Code (planejado; sem hook executável instalado).
 - `integrations/common/agent-adapter.js`: contrato v1 compartilhado; capacidades são observações, e ações de controle são metadados separados.
 - `integrations/codex/` e `integrations/claude-code/`: mapeiam hooks de cada agente para eventos do Lúmen.
 - `gnome-extension/lib/event-bridge.js`: possui o nome D-Bus enquanto a extensão está ativa; aceita apenas notificações JSON limitadas a 4096 bytes.

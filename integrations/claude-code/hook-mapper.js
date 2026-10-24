@@ -3,7 +3,7 @@ const EVENT_MAP = Object.freeze({
     PermissionRequest: {kind: 'approval_required', title: 'Permissão necessária', message: 'Claude Code aguarda sua aprovação na interface original.'},
     PreToolUse: {kind: 'working', title: 'Claude está trabalhando', message: 'Uma ferramenta está sendo executada.'},
     Stop: {kind: 'idle', title: 'Turno encerrado', message: 'Claude Code encerrou o turno.'},
-    StopFailure: {kind: 'task_failed', title: 'Turno falhou', message: 'Claude Code encerrou o turno com uma falha reportada.'},
+    StopFailure: {kind: 'task_failed', title: 'Erro na resposta do Claude', message: 'Claude Code encerrou o turno por erro de API.'},
 });
 
 export function mapClaudeCodeHookEvent(hookEvent) {
