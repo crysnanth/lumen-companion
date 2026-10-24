@@ -11,9 +11,10 @@ const NOTIFICATION_STATES = new Set([
 const STALE_CHECK_INTERVAL_SECONDS = 30;
 
 export class PetController {
-    constructor(view, stateMachine = new PetStateMachine()) {
+    constructor(view, stateMachine = new PetStateMachine(), behaviorController = null) {
         this._view = view;
         this._stateMachine = stateMachine;
+        this._behavior = behaviorController;
         this._staleCheckId = 0;
     }
 
@@ -34,6 +35,8 @@ export class PetController {
         const result = this._stateMachine.expireStale(now);
         if (result.changed)
             this._render(result);
+        if (result.changed)
+            this._behavior?.setAgentState(result.state);
         return result;
     }
 
@@ -50,6 +53,7 @@ export class PetController {
             return result;
 
         this._render(result);
+        this._behavior?.setAgentState(result.state === 'completed' ? result.resumeState : result.state);
 
         return result;
     }
@@ -57,6 +61,7 @@ export class PetController {
     reconcileSources(sourceIds) {
         const snapshot = this._stateMachine.retainSources(sourceIds);
         this._render(snapshot);
+        this._behavior?.setAgentState(snapshot.state);
         return snapshot;
     }
 
@@ -68,9 +73,21 @@ export class PetController {
         const snapshot = this._stateMachine.getSnapshot();
         this._view.updatePanel(snapshot);
         this._view.setState(result.state, result.resumeState);
-        if (NOTIFICATION_STATES.has(result.state))
-            this._view.showMessage(result.title, result.message, result.persistent);
-        else
+        if (NOTIFICATION_STATES.has(result.state)) {
+            const source = result.source ?? snapshot.source;
+            const sourceName = source === 'codex_cli' ? 'Codex CLI' :
+                source === 'claude_code' ? 'Claude Code' : source;
+            const task = snapshot.tasks?.find(item => item.source === source &&
+                item.task_id === result.task_id && item.session_id === result.session_id);
+            const sessionId = result.session_id ?? task?.session_id;
+            const title = source ? `${sourceName} — ${result.title}` : result.title;
+            const attentionNeeded = result.state === 'approval_required' || result.state === 'input_required';
+            let metadata = '';
+            if (sessionId)
+                metadata = attentionNeeded ? `Sessão ${sessionId} · responda no app original.` : `Sessão ${sessionId}`;
+            this._view.showMessage(title, result.message, result.persistent, [], metadata);
+        } else {
             this._view.hideMessage();
+        }
     }
 }

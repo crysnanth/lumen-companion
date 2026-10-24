@@ -153,6 +153,8 @@ export class PetStateMachine {
                 title: cleanText(event.title, MAX_TITLE_LENGTH) || 'Tarefa concluída',
                 message: cleanText(event.message, MAX_MESSAGE_LENGTH),
                 persistent: false,
+                source: event.source,
+                session_id: event.session_id,
                 task_id: event.task_id,
                 priority: 70,
             };
@@ -212,6 +214,7 @@ export class PetStateMachine {
                 persistent: false,
                 task_id: null,
                 source: null,
+                session_id: null,
                 priority: 10,
                 tasks: [],
             };
@@ -225,6 +228,7 @@ export class PetStateMachine {
             persistent: selected.persistent,
             task_id: selected.task_id,
             source: selected.source,
+            session_id: selected.session_id,
             priority: selected.priority,
             tasks: tasks.map(task => ({
                 source: task.source,

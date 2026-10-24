@@ -17,6 +17,53 @@
       <summary>Animações do Lúmen</summary>
       <description>Se ativado, os quadros dos estados são animados.</description>
     </key>
+    <key name="autonomous-behaviors-enabled" type="b">
+      <default>true</default>
+      <summary>Ações espontâneas</summary>
+      <description>Permite que o Lúmen olhe ao redor, sente, alongue, acene ou cochile quando estiver livre.</description>
+    </key>
+    <key name="roaming-enabled" type="b">
+      <default>false</default>
+      <summary>Caminhar automaticamente</summary>
+      <description>Permite caminhadas curtas quando não há tarefas de agentes ativas.</description>
+    </key>
+    <key name="roam-all-monitors" type="b">
+      <default>true</default>
+      <summary>Explorar todos os monitores</summary>
+      <description>Se desativado, o Lúmen caminha somente no monitor atual.</description>
+    </key>
+    <key name="walk-speed" type="i">
+      <default>115</default>
+      <range min="50" max="220"/>
+      <summary>Velocidade da caminhada</summary>
+      <description>Velocidade aproximada em pixels por segundo.</description>
+    </key>
+    <key name="behavior-frequency" type="i">
+      <default>1</default>
+      <range min="0" max="2"/>
+      <summary>Frequência de ações espontâneas</summary>
+      <description>0 é baixa, 1 é padrão e 2 é alta.</description>
+    </key>
+    <key name="quiet-mode" type="b">
+      <default>false</default>
+      <summary>Modo discreto</summary>
+      <description>Reduz a frequência das ações e interrompe caminhadas automáticas.</description>
+    </key>
+    <key name="spontaneous-dialogue-enabled" type="b">
+      <default>false</default>
+      <summary>Conversas locais espontâneas</summary>
+      <description>Permite diálogos curtos roteirizados, sem rede ou modelo de IA.</description>
+    </key>
+    <key name="mouse-interactions-enabled" type="b">
+      <default>true</default>
+      <summary>Interações com o mouse</summary>
+      <description>Permite reações leves ao passar o mouse, clicar e arrastar o personagem.</description>
+    </key>
+    <key name="reduced-motion" type="b">
+      <default>false</default>
+      <summary>Reduzir movimentos</summary>
+      <description>Evita caminhadas e limita as ações espontâneas a poses estáticas.</description>
+    </key>
     <key name="hide-in-fullscreen" type="b">
       <default>false</default>
       <summary>Ocultar o Lúmen em tela cheia</summary>

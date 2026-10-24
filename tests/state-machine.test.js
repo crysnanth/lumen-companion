@@ -104,6 +104,8 @@ completionMachine.handleEvent(event('task_started', 'task-stays-active', 1));
 completionMachine.handleEvent(event('task_started', 'task-finishes', 2));
 result = completionMachine.handleEvent(event('task_completed', 'task-finishes', 3));
 assert(result.state === 'completed' && result.resumeState === 'working', 'completion returns to another active task');
+assert(result.source === 'codex_cli' && result.session_id === 'test-session' && result.task_id === 'task-finishes',
+    'completion carries the exact source and session of its terminal event');
 
 const pendingMachine = new PetStateMachine();
 pendingMachine.handleEvent(event('approval_required', 'task-awaits-approval', 1));
@@ -128,10 +130,11 @@ concurrentSessionsMachine.handleEvent(event('approval_required', 'approval-task'
     source: 'codex_cli', session_id: 'codex-session',
 }));
 result = concurrentSessionsMachine.handleEvent(event('task_completed', 'same-task-id', 4, {
-    source: 'claude_code', session_id: 'claude-session',
+    source: 'codex_cli', session_id: 'codex-session', message: 'Codex terminou',
 }));
-assert(result.state === 'approval_required' && concurrentSessionsMachine.getSnapshot().tasks.length === 2,
-    'completion in one session cannot hide another session approval or remove its task');
+assert(result.state === 'approval_required' && concurrentSessionsMachine.getSnapshot().tasks.length === 2 &&
+    result.source === 'codex_cli' && result.session_id === 'codex-session',
+    'completion preserves its own identity while another session approval remains visible');
 result = concurrentSessionsMachine.handleEvent(event('task_interrupted', 'same-task-id', 5, {
     source: 'codex_cli', session_id: 'codex-session',
 }));

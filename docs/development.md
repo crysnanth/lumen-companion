@@ -23,6 +23,9 @@ O script usa apenas GJS e GLib, executa cada arquivo de teste isoladamente e ter
 
 ```sh
 gjs -m tests/animation-controller.test.js
+gjs -m tests/behavior-controller.test.js
+gjs -m tests/autonomous-walker.test.js
+gjs -m tests/monitor-geometry.test.js
 gjs -m tests/state-machine.test.js
 gjs -m tests/sound-controller.test.js
 gjs -m tests/codex-hook-mapper.test.js
@@ -91,6 +94,18 @@ Para instalar e ativar a cópia local, consulte [README.md](../README.md). Em Wa
 6. Navegue pelas páginas e controles com Tab, Shift+Tab, setas e Espaço/Enter; confirme rótulos e estados acessíveis no Adwaita.
 7. Use **Testar integração** para confirmar o caminho até o mascote. O teste mostra uma mensagem temporária e não passa pela máquina de estados das tarefas. Com uma aprovação, pergunta ou falha persistente aberta, confirme que o aviso permanece visível e que o resultado do teste aparece nas preferências.
 8. Para comparar o estado dos hooks, execute `gjs -m integrations/manage-hooks.js enable <codex_cli|claude_code>` e reabra as preferências. Revise/confie as definições no próprio agente. JSON inválido deve aparecer como erro de configuração; desabilitar a preferência interrompe a recepção no Lúmen, sem remover hooks.
+
+## Smoke test do companion autônomo
+
+1. Em **Comportamento**, confirme ações espontâneas ligadas, caminhada desligada e conversas espontâneas desligadas no padrão. Habilite caminhada e teste velocidades lenta/normal/rápida; o mascote deve permanecer na área útil e salvar a posição ao parar.
+2. Com dois monitores adjacentes em cada disposição disponível, habilite **Explorar todos os monitores** e observe a travessia lateral/vertical. Remova ou rearranje um monitor durante a caminhada e confirme que o personagem reaparece numa posição válida.
+3. Arraste o personagem durante o movimento; confirme que o clone continua arrastável, o movimento para sem salto e a posição final persiste. Abrir o painel também pausa a caminhada.
+4. Ative **Conversas locais espontâneas**, clique no mascote e escolha cada ação. Confirme que nenhuma resposta ou comando é enviado a um agente. Desative **Interações com o mouse** e confirme que o ator deixa de capturar clique/arraste.
+5. Envie eventos simulados `approval_required`, `input_required`, `task_failed` e depois um evento terminal correlacionado. Os avisos devem interromper a autonomia, identificar fonte/sessão, persistir até resolução e orientar a resposta na interface original.
+6. Teste **Modo discreto**, **Reduzir movimentos**, animações desativadas e ocultação em tela cheia. Confirme que não há caminhadas inesperadas e que a extensão restaura tudo após alternar as opções.
+7. Desabilite/reabilite a extensão repetidamente durante cada ação. Confirme ausência de timers, overlays e sinais órfãos e que cliques fora das hitboxes passam aos aplicativos.
+
+Registre compositor, versão, quantidade/layout/escala dos monitores e limitações de teste. O relatório [Lúmen vivo](reports/2026-10-24-lumen-vivo.md) registra a suíte automatizada e o que ainda exige observação visual numa sessão real.
 
 ## Estrutura dos módulos
 

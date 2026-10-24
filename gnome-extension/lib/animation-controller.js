@@ -1,51 +1,18 @@
 import GLib from 'gi://GLib';
-
-const ANIMATIONS = {
-    idle: {
-        frames: [0, 2, 3],
-        delays: [2000, 120, 180],
-        loop: true,
-    },
-    working: {
-        frames: [0, 1, 2, 3],
-        delays: [125, 125, 125, 125],
-        loop: true,
-    },
-    thinking: {
-        frames: [0, 1, 2, 3],
-        delays: [170, 170, 170, 170],
-        loop: true,
-    },
-    approval_required: {
-        frames: [0, 1, 2, 3],
-        delays: [125, 125, 125, 125],
-        loop: true,
-    },
-    input_required: {
-        frames: [0, 1, 2, 3],
-        delays: [125, 125, 125, 125],
-        loop: true,
-    },
-    completed: {
-        frames: [0, 1, 2, 3],
-        delays: [125, 125, 125, 125],
-        loop: false,
-    },
-    failed: {
-        frames: [0, 1, 2, 3],
-        delays: [160, 160, 160, 160],
-        loop: true,
-    },
-    sleeping: {
-        frames: [0, 1, 2, 3],
-        delays: [500, 500, 500, 500],
-        loop: true,
-    },
-};
+import {ANIMATION_MANIFEST} from './animation-manifest.js';
 
 export class AnimationController {
-    constructor(onFrame) {
+    constructor(onFrame, manifest = ANIMATION_MANIFEST) {
         this._onFrame = onFrame;
+        for (const animation of manifest) {
+            if (typeof animation.id !== 'string' || !Array.isArray(animation.files) ||
+                animation.files.length === 0 || !Array.isArray(animation.delays) ||
+                animation.delays.length !== animation.files.length ||
+                animation.delays.some(delay => !Number.isFinite(delay) || delay < 1) ||
+                typeof animation.loop !== 'boolean')
+                throw new TypeError(`Invalid animation manifest entry: ${animation.id}`);
+        }
+        this._animations = new Map(manifest.map(animation => [animation.id, animation]));
         this._state = null;
         this._step = 0;
         this._sourceId = 0;
@@ -68,9 +35,9 @@ export class AnimationController {
     }
 
     setState(state, resumeState = 'idle') {
-        if (!Object.hasOwn(ANIMATIONS, state))
+        if (!this._animations.has(state))
             throw new Error(`Unknown pet animation state: ${state}`);
-        if (!Object.hasOwn(ANIMATIONS, resumeState))
+        if (!this._animations.has(resumeState))
             throw new Error(`Unknown resume animation state: ${resumeState}`);
 
         this._resumeState = resumeState;
@@ -91,12 +58,13 @@ export class AnimationController {
     }
 
     _publishFrame() {
-        const animation = ANIMATIONS[this._state];
-        this._onFrame?.(this._state, animation.frames[this._step]);
+        this._onFrame?.(this._state, this._step);
     }
 
     _scheduleNextFrame() {
-        const animation = ANIMATIONS[this._state];
+        const animation = this._animations.get(this._state);
+        if (animation.files.length === 1 && animation.loop)
+            return;
         if (!this._animationsEnabled) {
             if (!animation.loop) {
                 const duration = animation.delays.reduce((total, delay) => total + delay, 0);
@@ -113,7 +81,7 @@ export class AnimationController {
             return;
         }
 
-        if (!animation.loop && this._step === animation.frames.length - 1) {
+        if (!animation.loop && this._step === animation.files.length - 1) {
             this._sourceId = GLib.timeout_add(
                 GLib.PRIORITY_DEFAULT,
                 animation.delays[this._step],
@@ -131,7 +99,7 @@ export class AnimationController {
             animation.delays[this._step],
             () => {
                 this._sourceId = 0;
-                this._step = (this._step + 1) % animation.frames.length;
+                this._step = (this._step + 1) % animation.files.length;
                 this._publishFrame();
                 this._scheduleNextFrame();
                 return GLib.SOURCE_REMOVE;
