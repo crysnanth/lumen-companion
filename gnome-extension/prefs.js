@@ -9,6 +9,7 @@ import {
     getIntegrationConfigPath,
     INTEGRATION_AGENTS,
     readIntegrationConfig,
+    resolveTrackingPreference,
     saveIntegrationConfig,
 } from './lib/integration-config.js';
 
@@ -140,6 +141,9 @@ export default class LumenPetPreferences extends ExtensionPreferences {
 
         const agentRows = new Map();
         let modeRow = null;
+        let sourceRow = null;
+        let selectedSourceId = null;
+        let syncingSourceSelection = false;
         for (const agent of AGENTS) {
             const configured = hasManagedHook(agent);
             const row = new Adw.SwitchRow({
@@ -149,14 +153,23 @@ export default class LumenPetPreferences extends ExtensionPreferences {
                 sensitive: !loadError,
             });
             row.connect('notify::active', () => {
+                const disabledPreferredSource = !row.active && modeRow?.selected === 1 && selectedSourceId === agent.id;
                 writeUpdate(integrations => {
                     integrations.agents[agent.id].enabled = row.active;
-                    if (!row.active && integrations.tracking.preferred_agent === agent.id) {
+                    if (disabledPreferredSource || (!row.active && integrations.tracking.preferred_agent === agent.id))
                         integrations.tracking = {mode: 'auto', preferred_agent: null};
-                        if (modeRow)
-                            modeRow.selected = 0;
-                    }
                 }, storageStatus);
+                if (!row.active && selectedSourceId === agent.id) {
+                    const fallback = AGENTS.find(item => item.id !== agent.id && agentRows.get(item.id)?.row.active);
+                    selectedSourceId = fallback?.id ?? null;
+                    if (fallback && sourceRow) {
+                        syncingSourceSelection = true;
+                        sourceRow.selected = AGENTS.findIndex(item => item.id === fallback.id);
+                        syncingSourceSelection = false;
+                    }
+                }
+                if (disabledPreferredSource && modeRow)
+                    modeRow.selected = 0;
                 refreshTrackingControls();
             });
             intro.add(row);
@@ -186,7 +199,7 @@ export default class LumenPetPreferences extends ExtensionPreferences {
         tracking.add(modeRow);
 
         const sourceLabels = AGENTS.map(agent => agent.name);
-        const sourceRow = new Adw.ComboRow({
+        sourceRow = new Adw.ComboRow({
             title: 'Fonte preferida',
             subtitle: 'Usada quando o modo de acompanhamento é “Fonte preferida”.',
             model: Gtk.StringList.new(sourceLabels),
@@ -217,28 +230,42 @@ export default class LumenPetPreferences extends ExtensionPreferences {
         const initialPreferred = AGENTS.findIndex(agent =>
             agent.id === config.integrations.tracking.preferred_agent && config.integrations.agents[agent.id].enabled);
         sourceRow.selected = initialPreferred >= 0 ? initialPreferred : Math.max(0, AGENTS.findIndex(agent => config.integrations.agents[agent.id].enabled));
-        let selectedSourceId = AGENTS[sourceRow.selected].id;
+        selectedSourceId = AGENTS[sourceRow.selected]?.id ?? null;
         modeRow.connect('notify::selected', () => {
+            const preference = resolveTrackingPreference(
+                modeRow.selected === 1 ? 'preferred' : 'auto',
+                selectedSourceId,
+                enabledAgents().map(agent => agent.id));
+            selectedSourceId = preference.selected_source;
+            const selectedIndex = AGENTS.findIndex(agent => agent.id === selectedSourceId);
+            if (selectedIndex >= 0 && sourceRow.selected !== selectedIndex) {
+                syncingSourceSelection = true;
+                sourceRow.selected = selectedIndex;
+                syncingSourceSelection = false;
+            }
             writeUpdate(integrations => {
-                integrations.tracking.mode = modeRow.selected === 1 ? 'preferred' : 'auto';
-                if (modeRow.selected === 0)
-                    integrations.tracking.preferred_agent = null;
-                else if (!integrations.tracking.preferred_agent)
-                    integrations.tracking.preferred_agent = enabledAgents()[0]?.id ?? null;
+                integrations.tracking = {
+                    mode: preference.mode,
+                    preferred_agent: preference.preferred_agent,
+                };
             }, storageStatus);
             refreshTrackingControls();
         });
         sourceRow.connect('notify::selected', () => {
+            if (syncingSourceSelection)
+                return;
             const agent = AGENTS[sourceRow.selected];
             if (!agent || !agentRows.get(agent.id).row.active) {
                 sourceRow.selected = AGENTS.findIndex(item => item.id === selectedSourceId);
                 return;
             }
             selectedSourceId = agent.id;
-            writeUpdate(integrations => {
-                integrations.tracking = {mode: 'preferred', preferred_agent: agent.id};
-            }, storageStatus);
-            modeRow.selected = 1;
+            if (modeRow.selected !== 1)
+                modeRow.selected = 1;
+            else
+                writeUpdate(integrations => {
+                    integrations.tracking = {mode: 'preferred', preferred_agent: agent.id};
+                }, storageStatus);
             refreshTrackingControls();
         });
         refreshTrackingControls();

@@ -82,18 +82,121 @@ export function saveIntegrationConfig(config) {
         Gio.FileCreateFlags.REPLACE_DESTINATION, null);
 }
 
+export function normalizeIntegrationSource(source) {
+    return source === 'codex' ? 'codex_cli' : source;
+}
+
+export function getActiveIntegrationSources(config) {
+    const integrations = config?.integrations ?? defaultIntegrationConfig().integrations;
+    const enabled = INTEGRATION_AGENTS
+        .filter(({id}) => integrations.agents?.[id]?.enabled !== false)
+        .map(({id}) => id);
+    if (integrations.tracking?.mode === 'preferred') {
+        const preferred = normalizeIntegrationSource(integrations.tracking.preferred_agent);
+        return enabled.includes(preferred) ? [preferred] : [];
+    }
+    return enabled;
+}
+
+export function resolveTrackingPreference(mode, selectedSource, enabledSources) {
+    if (mode !== 'preferred')
+        return {mode: 'auto', preferred_agent: null, selected_source: selectedSource};
+    const preferred = enabledSources.includes(selectedSource) ? selectedSource : enabledSources[0] ?? null;
+    return {
+        mode: preferred ? 'preferred' : 'auto',
+        preferred_agent: preferred,
+        selected_source: preferred ?? selectedSource,
+    };
+}
+
 /** Filter known agents using portable preferences; unknown event sources pass through. */
-export function isIntegrationEventEnabled(source) {
-    if (!INTEGRATION_AGENTS.some(agent => agent.id === source))
+export function isIntegrationEventEnabled(source, config = null) {
+    const canonicalSource = normalizeIntegrationSource(source);
+    if (!INTEGRATION_AGENTS.some(agent => agent.id === canonicalSource))
         return true;
     try {
-        const {config} = readIntegrationConfig();
+        config ??= readIntegrationConfig().config;
         const integrations = config.integrations;
-        if (!integrations.agents[source]?.enabled)
+        if (integrations.agents[canonicalSource]?.enabled === false)
             return false;
-        return integrations.tracking.mode !== 'preferred' || integrations.tracking.preferred_agent === source;
+        return integrations.tracking?.mode !== 'preferred' ||
+            normalizeIntegrationSource(integrations.tracking.preferred_agent) === canonicalSource;
     } catch (_error) {
         // Preserve event delivery if the preferences file cannot be read.
         return true;
+    }
+}
+
+/** Cache preferences and watch their directory so Shell does not parse JSON for every event. */
+export class IntegrationConfigWatcher {
+    constructor(onChange) {
+        this._onChange = onChange;
+        this._config = this._readOrDefault();
+        this._monitors = new Map();
+    }
+
+    start() {
+        this._ensureMonitor(GLib.getenv('XDG_CONFIG_HOME') || GLib.build_filenamev([GLib.get_home_dir(), '.config']));
+        this._ensureMonitor(GLib.build_filenamev([this._configDirectory(), 'lumen']));
+    }
+
+    stop() {
+        for (const {monitor, id} of this._monitors.values()) {
+            monitor.disconnect(id);
+            monitor.cancel();
+        }
+        this._monitors.clear();
+        this._onChange = null;
+    }
+
+    getActiveSources() {
+        return getActiveIntegrationSources(this._config);
+    }
+
+    isEventEnabled(source) {
+        return isIntegrationEventEnabled(source, this._config);
+    }
+
+    _configDirectory() {
+        return GLib.path_get_dirname(getIntegrationConfigPath());
+    }
+
+    _readOrDefault() {
+        try {
+            return readIntegrationConfig().config;
+        } catch (_error) {
+            return defaultIntegrationConfig();
+        }
+    }
+
+    _ensureMonitor(path) {
+        if (this._monitors.has(path))
+            return;
+        const directory = Gio.File.new_for_path(path);
+        if (!directory.query_exists(null))
+            return;
+        try {
+            const monitor = directory.monitor_directory(Gio.FileMonitorFlags.WATCH_MOVES, null);
+            const id = monitor.connect('changed', (_monitor, file) => {
+                const changedPath = file?.get_path();
+                if (changedPath === getIntegrationConfigPath() ||
+                    changedPath === this._configDirectory() ||
+                    changedPath === GLib.getenv('XDG_CONFIG_HOME') ||
+                    changedPath === GLib.build_filenamev([GLib.get_home_dir(), '.config', 'lumen'])) {
+                    this._reload();
+                }
+                this._ensureMonitor(this._configDirectory());
+            });
+            this._monitors.set(path, {monitor, id});
+        } catch (_error) {
+            // A missing/unavailable monitor must not disable event delivery.
+        }
+    }
+
+    _reload() {
+        const previous = JSON.stringify(this._config);
+        this._config = this._readOrDefault();
+        if (previous !== JSON.stringify(this._config))
+            this._onChange?.(this._config);
     }
 }
