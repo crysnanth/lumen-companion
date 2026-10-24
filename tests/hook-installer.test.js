@@ -114,6 +114,23 @@ assert(legacyCodex.hooks.UserPromptSubmit.length === 1
     && legacyCodex.hooks.UserPromptSubmit[0].hooks[0].command === 'other-agent-hook',
 'Codex disable removes migrated hooks and preserves third-party actions');
 
+const compositeCommandsPath = GLib.build_filenamev([home, '.codex', 'composite-commands.json']);
+const compositeCommands = [
+    `logger audit && /usr/bin/gjs -m ${legacyCodexAdapter}`,
+    `echo before; /usr/bin/gjs -m ${legacyCodexAdapter} && notify-send done`,
+    `/usr/bin/gjs -m ${legacyCodexAdapter} --custom`,
+    `env /usr/bin/gjs -m ${legacyCodexAdapter}`,
+];
+const compositeOriginal = JSON.stringify({hooks: {CustomEvent: [{hooks: compositeCommands.map(command => ({type: 'command', command}))}]}});
+write(compositeCommandsPath, compositeOriginal);
+const compositeInstaller = createHookInstaller({home, projectRoot, gjsPath: '/usr/bin/gjs',
+    configPaths: {codex_cli: compositeCommandsPath}});
+const compositeDisable = compositeInstaller.disable('codex_cli');
+assert(!compositeDisable.changed && !compositeDisable.backupPath,
+    'disable does not classify composed, wrapped, or extended commands as legacy Lúmen hooks');
+assert(read(compositeCommandsPath) === compositeOriginal,
+    'disable preserves entire third-party commands that only contain a Lúmen adapter invocation');
+
 const legacyClaudePath = GLib.build_filenamev([home, '.claude', 'legacy-settings.json']);
 const legacyClaudeAdapter = GLib.build_filenamev([projectRoot, 'integrations', 'claude-code', 'hook-adapter.js']);
 const legacyClaudeOriginal = JSON.stringify({hooks: {

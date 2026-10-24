@@ -86,7 +86,9 @@ function managedPrefix(id) {
 function isLegacyLumenCommand(command, integration) {
     // Before the installer added ownership markers, the published hook fragments
     // invoked these dedicated adapter modules directly through GJS.
-    const invocation = command.match(/(?:^|\s)(?:'([^']+)'|"([^"]+)"|([^\s]+))\s+-m\s+(?:'([^']+)'|"([^"]+)"|([^\s]+))(?:\s|$)/);
+    // Only migrate the exact, standalone command form shipped before ownership
+    // markers existed. Composite shell commands and extra arguments are ambiguous.
+    const invocation = command.match(/^(?:'([^']+)'|"([^"]+)"|([^\s]+))\s+-m\s+(?:'([^']+)'|"([^"]+)"|([^\s]+))$/);
     if (!invocation)
         return false;
     const executable = invocation[1] ?? invocation[2] ?? invocation[3];
