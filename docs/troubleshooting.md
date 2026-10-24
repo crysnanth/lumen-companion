@@ -13,7 +13,7 @@ Se estiver desabilitada, habilite-a com `gnome-extensions enable lumen-pet@meu-p
 
 Abra **Integrações** nas preferências da extensão. Para cada agente, confira se os hooks do Lúmen estão na configuração local, se a preferência está habilitada e quando chegou o último evento real. Hooks instalados não significam que o agente está conectado ou em execução.
 
-Use **Testar integração** para enviar um evento sintético pelo mesmo caminho D-Bus. A confirmação aparece nesta tela e como uma mensagem temporária no mascote. Esse teste não cria tarefas nem altera prompts ou aprovações do agente. Se o D-Bus não estiver disponível, habilite ou reinicie a extensão e tente novamente.
+Use **Testar integração** para enviar um evento sintético pelo mesmo caminho D-Bus. A confirmação aparece nesta tela e, quando não há um aviso persistente, como uma mensagem temporária no mascote. Um aviso de aprovação, pergunta ou falha pendente sempre permanece visível. O teste não cria tarefas nem altera prompts ou aprovações do agente. Se o D-Bus não estiver disponível, habilite ou reinicie a extensão e tente novamente.
 
 Também é possível confirmar o transporte pelo terminal:
 

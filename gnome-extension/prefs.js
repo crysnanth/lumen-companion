@@ -20,6 +20,7 @@ const SIZE_LABELS = [
     'Padrão — 128 px',
     'Grande — 160 px',
 ];
+const PRIORITY_STATES = new Set(['approval_required', 'input_required', 'failed']);
 
 const AGENTS = INTEGRATION_AGENTS.map(agent => ({
     ...agent,
@@ -99,9 +100,11 @@ function sendIntegrationTest(agent, button, row) {
         null,
         (connection, result) => {
             try {
-                const [accepted] = connection.call_finish(result).deepUnpack();
+                const [accepted, state] = connection.call_finish(result).deepUnpack();
                 row.subtitle = accepted
-                    ? 'Teste recebido pelo Lúmen; o mascote confirmou a comunicação.'
+                    ? PRIORITY_STATES.has(state)
+                        ? 'Teste recebido; o aviso prioritário do mascote foi preservado.'
+                        : 'Teste recebido pelo Lúmen; o mascote confirmou a comunicação.'
                     : 'O Lúmen recusou o teste. Confira se a extensão está atualizada e habilitada.';
             } catch (_error) {
                 row.subtitle = 'Lúmen indisponível pelo D-Bus. Ative ou reinicie a extensão e tente novamente.';
@@ -237,6 +240,7 @@ export default class LumenPetPreferences extends ExtensionPreferences {
             const status = new Adw.PreferencesGroup({title: `${agent.name}: estado`});
             page.add(status);
             addStatus(status, 'Hooks', hookStatus.message);
+            addStatus(status, 'Limite do diagnóstico', 'Verifica somente os hooks na configuração local; não confirma que o executável do agente está instalado ou em execução.');
             const preferenceStatus = addStatus(status, 'Preferência', row.active
                 ? 'Habilitada para atualizar o Lúmen quando eventos chegarem.'
                 : 'Desabilitada; eventos deste agente serão ignorados.');

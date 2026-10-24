@@ -5,6 +5,11 @@ import {PetController} from './lib/pet-controller.js';
 import {PetView} from './lib/pet-view.js';
 import {SoundController} from './lib/sound-controller.js';
 import {IntegrationConfigWatcher} from './lib/integration-config.js';
+import {
+    getLastEventSettingKey,
+    shouldRecordLastEvent,
+    shouldShowIntegrationTestFeedback,
+} from './lib/integration-status.js';
 
 const DISPLAY_SIZES = {
     small: 96,
@@ -43,18 +48,30 @@ export default class LumenPetExtension extends Extension {
             if (event?.schema_version === 1 && event.kind === 'integration_test' &&
                 ['codex_cli', 'claude_code'].includes(event.source) &&
                 typeof event.test_id === 'string' && event.test_id.length > 0) {
-                this._pet.showMessage('Teste recebido', 'A comunicação com o Lúmen está funcionando.');
-                return {accepted: true, state: this._controller.getSnapshot().state, reason: 'integration test received'};
+                const snapshot = this._controller.getSnapshot();
+                const showFeedback = shouldShowIntegrationTestFeedback(snapshot);
+                if (showFeedback)
+                    this._pet.showMessage('Teste recebido', 'A comunicação com o Lúmen está funcionando.');
+                return {
+                    accepted: true,
+                    state: snapshot.state,
+                    reason: showFeedback
+                        ? 'integration test received'
+                        : 'integration test received; persistent notification preserved',
+                };
             }
             if (!this._integrationConfig.isEventEnabled(event?.source))
                 return {accepted: false, state: 'idle', reason: 'integration disabled or not preferred'};
             const result = this._controller.handleEvent(event);
             if (result.accepted) {
                 this._sounds.play(result.state);
-                const lastEventKeys = {codex_cli: 'last-event-codex-cli', claude_code: 'last-event-claude-code'};
-                const key = lastEventKeys[event?.source];
-                if (key && typeof event.timestamp === 'string' && typeof event.kind === 'string')
-                    this._settings.set_string(key, `${event.timestamp}\t${event.kind}`);
+                const key = getLastEventSettingKey(event?.source);
+                if (key && typeof event.kind === 'string') {
+                    const now = Date.now();
+                    const previous = this._settings.get_string(key);
+                    if (shouldRecordLastEvent(previous, event.kind, now))
+                        this._settings.set_string(key, `${new Date(now).toISOString()}\t${event.kind}`);
+                }
             }
             return result;
         });
