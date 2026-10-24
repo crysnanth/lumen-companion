@@ -197,6 +197,27 @@ assert(checkedFullscreenMonitor && fullscreenPosition.x < fullscreenEast.x,
     'walker reflects instead of entering an adjacent monitor already marked fullscreen');
 fullscreenGuardWalker.destroy();
 
+const removableWest = {index: 13, x: 0, y: 0, width: 1000, height: 800};
+const removableEast = {index: 14, x: 1000, y: 0, width: 1000, height: 800};
+let hotplugMonitors = [removableWest, removableEast];
+let hotplugPosition = {x: 1100, y: 200};
+const hotplugWalker = new AutonomousWalker({
+    getPosition: () => hotplugPosition,
+    setPosition: (x, y) => hotplugPosition = {x, y},
+    getSize: () => ({width: 160, height: 160}),
+    getMonitors: () => hotplugMonitors,
+    schedule: clock.schedule,
+    cancel: clock.cancel,
+    now: () => clock.now,
+    random: () => 0,
+});
+hotplugWalker.start({durationMs: 1000, speed: 200, direction: 'right'});
+hotplugMonitors = [removableWest];
+clock.advance(60);
+assert(Number.isFinite(hotplugPosition.x) && hotplugPosition.x <= removableWest.x + removableWest.width - 172,
+    'removing the active monitor moves a roaming pet into the remaining monitor bounds');
+hotplugWalker.destroy();
+
 const shortWest = {index: 5, x: 0, y: 0, width: 1000, height: 400};
 const shortEast = {index: 6, x: 1000, y: 350, width: 1000, height: 400};
 let shortPosition = {x: 840, y: 100};

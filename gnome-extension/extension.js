@@ -1,5 +1,6 @@
 import {Extension} from 'resource:///org/gnome/shell/extensions/extension.js';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
+import GLib from 'gi://GLib';
 import {EventBridge} from './lib/event-bridge.js';
 import {PetController} from './lib/pet-controller.js';
 import {PetView} from './lib/pet-view.js';
@@ -76,6 +77,7 @@ export default class LumenPetExtension extends Extension {
         });
         this._dialogue = new DialogueController();
         this._dialogueActive = false;
+        this._dialogueTimeoutId = 0;
         this._behavior = new BehaviorController(action => this._onBehaviorAction(action));
         this._behavior.setEnabled(this._settings.get_boolean('autonomous-behaviors-enabled'));
         this._behavior.setFrequency(this._settings.get_int('behavior-frequency'));
@@ -284,7 +286,7 @@ export default class LumenPetExtension extends Extension {
 
         this._controller?.destroy();
         this._controller = null;
-        this._dialogue?.cancel();
+        this._finishDialogue();
         this._dialogue = null;
         this._behavior?.destroy();
         this._behavior = null;
@@ -332,6 +334,11 @@ export default class LumenPetExtension extends Extension {
         }
         this._behavior.pause('dialogue');
         this._dialogueActive = true;
+        this._dialogueTimeoutId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, dialogue.timeoutMs, () => {
+            this._dialogueTimeoutId = 0;
+            this._finishDialogue();
+            return GLib.SOURCE_REMOVE;
+        });
         const actions = dialogue.choices.map(choice => ({label: choice.label, onClick: () => {
             const selected = this._dialogue.choose(choice.id);
             if (!selected)
@@ -347,6 +354,10 @@ export default class LumenPetExtension extends Extension {
     _finishDialogue(hideBubble = true) {
         const wasActive = this._dialogueActive;
         this._dialogueActive = false;
+        if (this._dialogueTimeoutId) {
+            GLib.Source.remove(this._dialogueTimeoutId);
+            this._dialogueTimeoutId = 0;
+        }
         this._dialogue?.cancel();
         this._behavior?.resume('dialogue');
         if (hideBubble && wasActive)
