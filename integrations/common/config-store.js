@@ -1,5 +1,6 @@
 import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
+import {AGENT_ADAPTERS} from '../catalog.js';
 
 export const CONFIG_FORMAT_VERSION = 1;
 export const TRACKING_MODES = Object.freeze(['auto', 'preferred']);
@@ -8,12 +9,10 @@ export const NOTIFICATION_TYPES = Object.freeze([
     'task_failed', 'task_completed', 'task_interrupted', 'idle',
 ]);
 
-const AGENT_IDS = Object.freeze(['codex_cli', 'claude_code']);
-
-export function defaultIntegrationConfig() {
+export function defaultIntegrationConfig(adapters = AGENT_ADAPTERS) {
     const agents = {};
-    for (const id of AGENT_IDS)
-        agents[id] = {enabled: id === 'codex_cli'};
+    for (const adapter of adapters)
+        agents[adapter.id] = {enabled: adapter.integrationStatus === 'available'};
     const notifications = {};
     for (const type of NOTIFICATION_TYPES)
         notifications[type] = true;
@@ -44,10 +43,12 @@ function cloneJson(value) {
 }
 
 /** Merge known portable fields with defaults, retaining unrelated fields and future data. */
-export function normalizeIntegrationConfig(input) {
-    const defaults = defaultIntegrationConfig();
+export function normalizeIntegrationConfig(input, adapters = AGENT_ADAPTERS) {
+    const defaults = defaultIntegrationConfig(adapters);
     if (!isObject(input))
         return defaults;
+    if (Number.isInteger(input.version) && input.version > CONFIG_FORMAT_VERSION)
+        throw new Error(`Unsupported integration config version ${input.version}`);
 
     const result = {...defaults, ...input};
     result.version = CONFIG_FORMAT_VERSION;
@@ -56,7 +57,7 @@ export function normalizeIntegrationConfig(input) {
 
     const sourceAgents = isObject(source.agents) ? source.agents : {};
     const agents = {...defaults.integrations.agents, ...sourceAgents};
-    for (const id of AGENT_IDS) {
+    for (const {id} of adapters) {
         const entry = isObject(sourceAgents[id]) ? sourceAgents[id] : {};
         agents[id] = {...defaults.integrations.agents[id], ...entry,
             enabled: typeof entry.enabled === 'boolean' ? entry.enabled : defaults.integrations.agents[id].enabled};
@@ -64,11 +65,14 @@ export function normalizeIntegrationConfig(input) {
     integrations.agents = agents;
 
     const sourceTracking = isObject(source.tracking) ? source.tracking : {};
-    const mode = TRACKING_MODES.includes(sourceTracking.mode) ? sourceTracking.mode : 'auto';
     const preferred = sourceTracking.preferred_agent;
+    const preferredAdapter = adapters.find(adapter => adapter.id === preferred);
+    const preferredEnabled = preferredAdapter && agents[preferred]?.enabled === true;
+    const usePreferred = sourceTracking.mode === 'preferred' && preferredEnabled;
+    const mode = usePreferred ? 'preferred' : 'auto';
     integrations.tracking = {...defaults.integrations.tracking, ...sourceTracking,
         mode,
-        preferred_agent: typeof preferred === 'string' && preferred.trim() ? preferred : null};
+        preferred_agent: usePreferred ? preferred : null};
 
     const sourceNotifications = isObject(source.notifications) ? source.notifications : {};
     const notifications = {...defaults.integrations.notifications, ...sourceNotifications};
@@ -81,12 +85,22 @@ export function normalizeIntegrationConfig(input) {
     return result;
 }
 
-export function createIntegrationConfigStore({path = resolveConfigPath()} = {}) {
+function deepMerge(target, source) {
+    const result = {...target};
+    for (const [key, value] of Object.entries(source)) {
+        result[key] = isObject(value) && isObject(target[key])
+            ? deepMerge(target[key], value)
+            : value;
+    }
+    return result;
+}
+
+export function createIntegrationConfigStore({path = resolveConfigPath(), adapters = AGENT_ADAPTERS} = {}) {
     const file = Gio.File.new_for_path(path);
 
     function read() {
         if (!file.query_exists(null))
-            return {config: defaultIntegrationConfig(), exists: false, valid: true, error: null};
+            return {config: defaultIntegrationConfig(adapters), exists: false, valid: true, error: null};
         try {
             const [ok, contents] = file.load_contents(null);
             if (!ok)
@@ -94,10 +108,10 @@ export function createIntegrationConfigStore({path = resolveConfigPath()} = {}) 
             const parsed = JSON.parse(new TextDecoder().decode(contents));
             if (!isObject(parsed))
                 throw new Error('Integration config root must be an object');
-            return {config: normalizeIntegrationConfig(parsed), exists: true, valid: true, error: null};
+            return {config: normalizeIntegrationConfig(parsed, adapters), exists: true, valid: true, error: null};
         } catch (error) {
             // Keep malformed input untouched; callers can recover it instead of losing data.
-            return {config: defaultIntegrationConfig(), exists: true, valid: false, error};
+            return {config: defaultIntegrationConfig(adapters), exists: true, valid: false, error};
         }
     }
 
@@ -106,8 +120,10 @@ export function createIntegrationConfigStore({path = resolveConfigPath()} = {}) 
         if (!current.valid)
             throw new Error(`Refusing to overwrite invalid integration config at ${path}: ${current.error.message}`);
         const draft = cloneJson(current.config);
-        const next = typeof changes === 'function' ? changes(draft) ?? draft : {...draft, ...changes};
-        const config = normalizeIntegrationConfig(next);
+        const next = typeof changes === 'function'
+            ? changes(draft) ?? draft
+            : deepMerge(draft, changes);
+        const config = normalizeIntegrationConfig(next, adapters);
         const parent = file.get_parent();
         if (!parent.query_exists(null) && !parent.make_directory_with_parents(null))
             throw new Error(`Could not create config directory ${parent.get_path()}`);
