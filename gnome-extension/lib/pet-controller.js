@@ -28,6 +28,17 @@ export class PetController {
         return result;
     }
 
+    reconcileSources(sourceIds) {
+        const snapshot = this._stateMachine.retainSources(sourceIds);
+        this._view.updatePanel(snapshot);
+        this._view.setState(snapshot.state, snapshot.resumeState);
+        if (NOTIFICATION_STATES.has(snapshot.state))
+            this._view.showMessage(snapshot.title, snapshot.message, snapshot.persistent);
+        else
+            this._view.hideMessage();
+        return snapshot;
+    }
+
     getSnapshot() {
         return this._stateMachine.getSnapshot();
     }

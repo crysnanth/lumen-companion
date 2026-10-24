@@ -154,6 +154,27 @@ sourceMachine.handleEvent(event('working', 'shared-task', 2, {source: 'claude_co
 result = sourceMachine.handleEvent(event('task_interrupted', 'shared-task', 3, {source: 'codex_cli'}));
 assert(result.state === 'working', 'task identity includes its agent source');
 
+const sourceSwitchMachine = new PetStateMachine();
+sourceSwitchMachine.handleEvent(event('task_started', 'codex-working', 1, {source: 'codex_cli'}));
+sourceSwitchMachine.handleEvent(event('approval_required', 'codex-approval', 2, {source: 'codex_cli'}));
+sourceSwitchMachine.handleEvent(event('working', 'claude-working', 3, {source: 'claude_code'}));
+result = sourceSwitchMachine.retainSources(['claude_code']);
+assert(result.state === 'working' && result.source === 'claude_code',
+    'switching away from Codex clears its pending approval and resumes Claude work');
+
+const disabledSourceMachine = new PetStateMachine();
+disabledSourceMachine.handleEvent(event('task_started', 'codex-started', 1, {source: 'codex_cli'}));
+disabledSourceMachine.handleEvent(event('approval_required', 'codex-pending', 2, {source: 'codex_cli'}));
+result = disabledSourceMachine.retainSources(['claude_code']);
+assert(result.state === 'idle' && result.task_id === null,
+    'disabling the only active source clears its working task and persistent approval');
+
+const futureReconcileMachine = new PetStateMachine();
+futureReconcileMachine.handleEvent(event('working', 'future-working', 1, {source: 'future_agent'}));
+result = futureReconcileMachine.retainSources(['claude_code']);
+assert(result.state === 'working' && result.source === 'future_agent',
+    'reconciling known integrations preserves independent future sources');
+
 const capacityMachine = new PetStateMachine();
 for (let index = 0; index < 512; index++) {
     result = capacityMachine.handleEvent(event('working', `capacity-${index}`, index + 1));

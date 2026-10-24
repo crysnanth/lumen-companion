@@ -158,6 +158,42 @@ export class PetStateMachine {
         return {accepted: true, ...selected};
     }
 
+    /** Remove state owned by sources that are no longer enabled or preferred. */
+    retainSources(sourceIds, managedSourceIds = ['codex_cli', 'claude_code']) {
+        const retained = new Set(sourceIds.map(source => source === 'codex' ? 'codex_cli' : source));
+        const canonicalSource = source => source === 'codex' ? 'codex_cli' : source;
+        const managed = new Set(managedSourceIds.map(canonicalSource));
+        const belongsToRemovedSource = key => {
+            try {
+                const [source] = JSON.parse(key);
+                const normalized = canonicalSource(source);
+                return managed.has(normalized) && !retained.has(normalized);
+            } catch (_error) {
+                return false;
+            }
+        };
+
+        for (const key of this._tasks.keys()) {
+            const source = canonicalSource(JSON.parse(key)[0]);
+            if (managed.has(source) && !retained.has(source))
+                this._tasks.delete(key);
+        }
+        for (const key of this._lastTimestampByTask.keys()) {
+            if (belongsToRemovedSource(key))
+                this._lastTimestampByTask.delete(key);
+        }
+        this._dedupeQueue = this._dedupeQueue.filter(eventKey => {
+            try {
+                const [taskKey] = JSON.parse(eventKey);
+                return !belongsToRemovedSource(taskKey);
+            } catch (_error) {
+                return true;
+            }
+        });
+        this._dedupeKeys = new Set(this._dedupeQueue);
+        return this.getSnapshot();
+    }
+
     getSnapshot() {
         let selected = null;
         for (const task of this._tasks.values()) {
