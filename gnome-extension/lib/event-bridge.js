@@ -1,10 +1,9 @@
 import Gio from 'gi://Gio';
+import {isEventPayloadWithinLimit} from './state-machine.js';
 
 const BUS_NAME = 'local.meupet.LumenPet';
 const OBJECT_PATH = '/local/meupet/LumenPet';
 const INTERFACE_NAME = 'local.meupet.LumenPet1';
-const MAX_EVENT_BYTES = 4096;
-
 const INTERFACE_XML = `
 <node>
   <interface name="${INTERFACE_NAME}">
@@ -87,8 +86,7 @@ export class EventBridge {
         if (typeof eventJson !== 'string')
             return [false, 'idle', 'event payload must be a string'];
 
-        if (eventJson.length > MAX_EVENT_BYTES ||
-            new TextEncoder().encode(eventJson).byteLength > MAX_EVENT_BYTES)
+        if (!isEventPayloadWithinLimit(eventJson))
             return [false, 'idle', 'event payload exceeds 4096 bytes'];
 
         let event;

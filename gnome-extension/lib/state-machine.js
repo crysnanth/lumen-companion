@@ -8,6 +8,7 @@ const TASK_STATES = {
 };
 
 const TERMINAL_EVENTS = new Set(['task_completed', 'task_interrupted', 'idle']);
+const GENERIC_ACTIVITY_EVENTS = new Set(['task_started', 'working', 'thinking']);
 const EVENT_KINDS = new Set([...Object.keys(TASK_STATES), ...TERMINAL_EVENTS]);
 const MAX_TITLE_LENGTH = 80;
 const MAX_MESSAGE_LENGTH = 200;
@@ -15,6 +16,7 @@ const MAX_IDENTIFIER_LENGTH = 128;
 const MAX_DEDUPE_KEYS = 256;
 const MAX_TASK_TIMESTAMPS = 512;
 const MAX_ACTIVE_TASKS = 512;
+export const MAX_EVENT_BYTES = 4096;
 const DEFAULT_TITLES = {
     approval_required: 'Permissão necessária',
     input_required: 'Informação necessária',
@@ -38,7 +40,12 @@ function validIdentifier(value) {
         value.length <= MAX_IDENTIFIER_LENGTH && !/[\u0000-\u001F\u007F]/.test(value);
 }
 
-function validateEvent(event) {
+export function isEventPayloadWithinLimit(eventJson) {
+    return typeof eventJson === 'string' && eventJson.length <= MAX_EVENT_BYTES &&
+        new TextEncoder().encode(eventJson).byteLength <= MAX_EVENT_BYTES;
+}
+
+export function validateEvent(event) {
     if (!event || typeof event !== 'object' || Array.isArray(event))
         return 'event must be an object';
     if (event.schema_version !== 1)
@@ -76,6 +83,12 @@ export class PetStateMachine {
         if (validationError)
             return {accepted: false, reason: validationError, ...this.getSnapshot()};
 
+        // `codex` was the source identifier emitted by the original v1 hook
+        // adapter. Normalize it at the boundary so old and new producers share
+        // task identity, deduplication and ordering behavior.
+        if (event.source === 'codex')
+            event = {...event, source: 'codex_cli'};
+
         const key = taskKey(event);
         const timestamp = Date.parse(event.timestamp);
         const eventKey = JSON.stringify([key, event.kind, event.timestamp]);
@@ -91,6 +104,14 @@ export class PetStateMachine {
 
         this._rememberEvent(eventKey);
         this._rememberTaskTimestamp(key, timestamp);
+
+        const currentTask = this._tasks.get(key);
+        // Progress hooks do not carry a correlation key shared with
+        // PermissionRequest. Keep a persistent prompt visible until a terminal
+        // event confirms that this task has ended. Semantic outcomes such as
+        // task_failed still replace the pending state for this task.
+        if (currentTask?.persistent && GENERIC_ACTIVITY_EVENTS.has(event.kind))
+            return {accepted: true, ...this.getSnapshot()};
 
         if (TERMINAL_EVENTS.has(event.kind))
             this._tasks.delete(key);

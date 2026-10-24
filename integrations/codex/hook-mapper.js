@@ -9,6 +9,11 @@ const EVENT_MAP = {
         title: 'Permissão necessária',
         message: 'O Codex aguarda sua aprovação na interface original.',
     },
+    PreToolUse: {
+        kind: 'working',
+        title: 'Codex está trabalhando',
+        message: 'A ferramenta está sendo executada.',
+    },
     Interrupt: {
         kind: 'task_interrupted',
         title: 'Tarefa interrompida',
@@ -35,7 +40,7 @@ export function mapCodexHookEvent(hookEvent) {
 
     return {
         schema_version: 1,
-        source: 'codex',
+        source: 'codex_cli',
         session_id: hookEvent.session_id,
         task_id: taskId,
         kind: mapped.kind,
