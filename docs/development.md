@@ -18,6 +18,7 @@ gjs -m tests/animation-controller.test.js
 gjs -m tests/state-machine.test.js
 gjs -m tests/sound-controller.test.js
 gjs -m tests/codex-hook-mapper.test.js
+gjs -m tests/agent-adapters.test.js
 gjs -m tests/event-transport.test.js
 glib-compile-schemas --strict --dry-run gnome-extension/schemas
 ```
@@ -35,7 +36,7 @@ Para instalar e ativar a cópia local, consulte [README.md](../README.md). Em Wa
 
 ## Estrutura dos módulos
 
-Mantenha a interface em `gnome-extension/`, o adaptador do Codex em `integrations/codex/`, o emissor de eventos de teste em `integrations/simulator/` e testes em `tests/`. O daemon Rust está adiado; não há razão para mantê-lo ativo enquanto os hooks diretos resolvem a integração.
+Mantenha a interface em `gnome-extension/`, os adaptadores em `integrations/<agente>/`, o registro e contrato em `integrations/catalog.js` e `integrations/common/`, o emissor de eventos de teste em `integrations/simulator/` e testes em `tests/`. O daemon Rust está adiado; não há razão para mantê-lo ativo enquanto os hooks diretos resolvem a integração.
 
 ## Ciclo de vida
 
