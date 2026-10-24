@@ -1,6 +1,6 @@
 # Integração com Codex CLI
 
-A integração atual usa os command hooks oficiais do Codex. O adaptador é executado por evento e encaminha uma notificação JSON ao transporte local do Lúmen. A interface compartilhada em `integrations/common/event-transport.js` serializa e limita o payload; `integrations/linux/dbus-session-transport.js` implementa o transporte D-Bus da sessão GNOME; `integrations/event-sender.js` liga a interface ao backend disponível. Outro sistema pode fornecer um transporte com o mesmo método `sendEventJson(eventJson)` e registrá-lo nesse ponto de composição. O hook não retorna decisões e termina sem saída em `stdout` ou `stderr`, mesmo se a extensão estiver ausente ou o envio falhar.
+A integração atual usa os command hooks oficiais do Codex. O adaptador é executado por evento e encaminha uma notificação JSON ao transporte local do Lúmen. A interface compartilhada em `integrations/common/event-transport.js` serializa e limita o payload; `integrations/linux/dbus-session-transport.js` implementa o transporte D-Bus da sessão GNOME; `integrations/event-sender.js` liga a interface ao backend disponível. A leitura de `stdin` específica do GJS está isolada em `integrations/linux/hook-input.js`, sem importar Gio no adaptador Codex. Outro sistema pode fornecer um transporte com o mesmo método `sendEventJson(eventJson)` e registrá-lo nesse ponto de composição. O hook não retorna decisões e termina sem saída em `stdout` ou `stderr`, mesmo se a extensão estiver ausente ou o envio falhar.
 
 ## Eventos mapeados
 

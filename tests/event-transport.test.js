@@ -1,9 +1,13 @@
 import {createEventSender, MAX_EVENT_PAYLOAD_BYTES} from '../integrations/common/event-transport.js';
+import {MAX_EVENT_BYTES} from '../gnome-extension/lib/state-machine.js';
 
 function assert(condition, message) {
     if (!condition)
         throw new Error(`FAIL: ${message}`);
 }
+
+assert(MAX_EVENT_PAYLOAD_BYTES === MAX_EVENT_BYTES,
+    'producer payload limit matches the GNOME extension contract');
 
 let sentPayload = null;
 let calls = 0;

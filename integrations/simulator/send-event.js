@@ -1,3 +1,4 @@
+import {MAX_EVENT_PAYLOAD_BYTES} from '../common/event-transport.js';
 import {createPlatformEventSender} from '../event-sender.js';
 const EVENT_KINDS = new Set([
     'task_started',
@@ -27,8 +28,8 @@ const eventSender = createPlatformEventSender(5000);
 function sendEventJson(eventJson) {
     const result = eventSender.sendSerialized(eventJson);
     if (result === null) {
-        const reason = new TextEncoder().encode(eventJson).byteLength > 4096
-            ? 'event payload exceeds 4096 bytes'
+        const reason = new TextEncoder().encode(eventJson).byteLength > MAX_EVENT_PAYLOAD_BYTES
+            ? `event payload exceeds ${MAX_EVENT_PAYLOAD_BYTES} bytes`
             : 'event could not be delivered';
         print(JSON.stringify({accepted: false, state: 'idle', reason}));
         return;
