@@ -13,6 +13,14 @@ command -v gjs gnome-extensions gdbus glib-compile-schemas
 
 ## Verificações locais
 
+Execute toda a suíte e valide o schema em um comando:
+
+```sh
+./tests/run-all.sh
+```
+
+O script usa apenas GJS e GLib, executa cada arquivo de teste isoladamente e termina com erro se qualquer teste ou a validação do schema falhar. Para executar uma área específica, invoque o arquivo correspondente diretamente:
+
 ```sh
 gjs -m tests/animation-controller.test.js
 gjs -m tests/state-machine.test.js
@@ -28,6 +36,39 @@ gjs -m tests/event-transport.test.js
 gjs -m tests/hook-installer.test.js
 glib-compile-schemas --strict --dry-run gnome-extension/schemas
 ```
+
+Os testes de adaptadores e mapeadores usam fixtures dos dois agentes. `hook-installer.test.js` cria configurações temporárias e verifica mesclagem, idempotência, backup, permissões, remoção segura e preservação de hooks de terceiros. Esses testes não alteram os arquivos de configuração reais do usuário.
+
+## Smoke test de agente real
+
+Roteiro manual para Debian 13, GNOME Shell 48 e Wayland. Registre as versões e execute cada cenário com os dois agentes quando disponíveis. Use um projeto descartável, revise/confie os hooks na interface oficial do agente e confirme que a tarefa continua normalmente.
+
+1. **Início e parada:** envie uma tarefa inofensiva. Confirme animação de trabalho ao iniciar e retorno ao repouso quando a tarefa terminar/interromper.
+2. **Permissão:** peça ao agente uma operação que exija confirmação, como gravar um arquivo no projeto descartável. Confirme que o Lúmen mostra o aviso e que somente a interface original decide a permissão; teste permitir e negar.
+3. **Pergunta/entrada:** quando o agente suportar um evento de entrada pendente, provoque uma confirmação de usuário e confirme o aviso. Claude Code mapeia notificações de elicitação; o Codex CLI não fornece evento equivalente nos hooks mapeados.
+4. **Falha:** provoque um erro controlado de API ou uma falha que o hook do agente reporte. Confirme o aviso de falha sem inferir falha de ferramenta não reportada. Claude `StopFailure` cobre falhas de API; Codex não fornece evento explícito de falha.
+5. **Simultaneidade/prioridade:** rode tarefas inofensivas em duas sessões, intercale início, espera, permissão, conclusão e falha. Confirme que a sessão prioritária segue as regras documentadas em [arquitetura](architecture.md), sem uma sessão terminal encerrar aviso persistente de outra.
+6. **Sem mascote:** desabilite a extensão mantendo o agente ativo e faça uma tarefa curta. Confirme que o agente termina normalmente; reabilite a extensão e confirme que o serviço D-Bus retorna.
+7. **Instalação/remoção:** com a configuração respaldada, habilite e remova os hooks pelo gerenciador. Confirme que hooks de terceiros e configurações do agente permanecem e que tarefas do agente continuam. A suíte automatizada exercita essas alterações em configurações temporárias.
+
+Não use prompts ou ferramentas que exponham dados privados. Anote agentes/versões e cenários não executados; um envio pelo simulador não substitui um smoke test real.
+
+- **Codex CLI:** um evento real `UserPromptSubmit` e o evento terminal `Stop` foram observados chegando à extensão via D-Bus no teste descrito em [relatório da Fase 5](reports/2026-10-23-fase-5-codex.md). Nesta revisão, o Codex CLI 0.164.0 está instalado; o fluxo real não foi repetido. O instalador automatizado foi exercitado em diretórios temporários.
+- **Claude Code:** o CLI não está instalado neste ambiente. Fixtures verificam os eventos documentados e o instalador é exercitado com configurações temporárias; o fluxo real do agente e a continuidade de sua execução após instalar/remover hooks ainda precisam de uma máquina com Claude Code.
+
+Um envio via `integrations/simulator/send-event.js` verifica o transporte da extensão, mas não substitui o smoke test do agente real.
+
+## Medir CPU e memória
+
+A extensão compartilha o processo `gnome-shell`; `RSS`/`PSS` e CPU do processo incluem o Shell e outras extensões. Use o mesmo processo para comparar antes e depois de habilitar o Lúmen, com a sessão estabilizada e períodos iguais em repouso e animação. Estes comandos registram amostras do processo atual, não isolam o custo da extensão:
+
+```sh
+pgrep -a -x gnome-shell
+pidstat -h -u -p <PID> 1 40
+awk '/^(Rss|Pss):/ { print }' /proc/<PID>/smaps_rollup
+```
+
+Repita a coleta em cada estado, anotando versão do GNOME, sessão, estado do Lúmen, duração e condições de fundo. Se for usado um GNOME Shell aninhado, registre os serviços auxiliares e o perfil temporário. Consulte o [relatório de desempenho da Fase 9](reports/2026-10-23-fase-9-desempenho.md) para a linha de base disponível e suas limitações; não compare o RSS total do Shell com um limite de memória atribuído ao pet.
 
 Empacote para um diretório temporário:
 

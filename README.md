@@ -50,6 +50,18 @@ A integração por hooks é descrita em [docs/codex-integration.md](docs/codex-i
 
 A integração por hooks está descrita em [docs/claude-code-integration.md](docs/claude-code-integration.md). Ela observa eventos, não decide permissões nem altera prompts, ferramentas ou respostas.
 
+As integrações entregues são para Codex CLI e Claude Code no GNOME/Linux. O Codex informa início, pedido de permissão, atividade de ferramenta e interrupção/fim de turno; seu hook de fim não confirma sucesso. O Claude Code também informa pedidos de entrada e falhas de API por seus hooks. Eventos que o agente não fornece não são inferidos pelo Lúmen.
+
+## Desenvolvimento
+
+Execute a suíte automatizada e a validação do schema com:
+
+```sh
+./tests/run-all.sh
+```
+
+O roteiro de smoke test para agentes reais, medições de desempenho e resultados/limitações estão em [docs/development.md](docs/development.md) e [relatórios técnicos](docs/reports/).
+
 ## Remover
 
 ```sh
