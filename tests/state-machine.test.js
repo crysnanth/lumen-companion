@@ -36,6 +36,11 @@ assert(result.state === 'approval_required', 'older event does not replace appro
 result = machine.handleEvent(event('task_interrupted', 'task-a', 3));
 assert(result.accepted && result.state === 'idle', 'interruption clears pending state without marking success');
 
+const approvalRecoveryMachine = new PetStateMachine();
+approvalRecoveryMachine.handleEvent(event('approval_required', 'task-approved', 1));
+result = approvalRecoveryMachine.handleEvent(event('working', 'task-approved', 2));
+assert(result.accepted && result.state === 'working', 'tool activity clears a previously pending approval');
+
 machine.handleEvent(event('task_started', 'task-work', 4));
 machine.handleEvent(event('task_failed', 'task-failure', 5));
 assert(machine.getSnapshot().state === 'failed', 'failure outranks active work');

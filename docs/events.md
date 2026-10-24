@@ -48,7 +48,7 @@ Quando há várias tarefas, a maior prioridade fica visível; empates favorecem 
 
 | `source` | Situação e eventos que pode reportar |
 |---|---|
-| `codex_cli` | Adaptador disponível: `task_started`, `approval_required`, `task_interrupted` e `idle`. O hook `Stop` não informa sucesso/falha e vira `idle`. Os hooks documentados não reportam `task_failed` nem `input_required`. |
+| `codex_cli` | Adaptador disponível: `task_started`, `approval_required`, `working`, `task_interrupted` e `idle`. `PreToolUse`/`PostToolUse` voltam a `working` depois que uma ferramenta pendente é liberada. O hook `Stop` não informa sucesso/falha e vira `idle`. Os hooks documentados não reportam `task_failed` nem `input_required`. |
 | `claude_code` | Nome reservado no contrato para um adaptador futuro. Ainda não há integração implementada neste repositório. |
 | `simulator` | Emissor local para desenvolvimento e demonstração; pode enviar todos os tipos aceitos. |
 
