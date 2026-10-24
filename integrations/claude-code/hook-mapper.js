@@ -8,7 +8,6 @@ const EVENT_MAP = Object.freeze({
 
 const NOTIFICATION_MAP = Object.freeze({
     permission_prompt: {kind: 'approval_required', title: 'Permissão necessária', message: 'Claude Code aguarda sua aprovação na interface original.'},
-    idle_prompt: {kind: 'input_required', title: 'Claude aguarda sua resposta', message: 'Claude Code está aguardando uma nova entrada.'},
     elicitation_dialog: {kind: 'input_required', title: 'Claude precisa de uma resposta', message: 'Claude Code aguarda uma resposta na interface original.'},
     elicitation_url_dialog: {kind: 'input_required', title: 'Claude precisa de uma resposta', message: 'Claude Code aguarda uma resposta na interface original.'},
     agent_needs_input: {kind: 'input_required', title: 'Claude precisa de uma resposta', message: 'Claude Code aguarda uma resposta na interface original.'},

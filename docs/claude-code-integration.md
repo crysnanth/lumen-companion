@@ -9,12 +9,12 @@ A integração usa command hooks oficiais do Claude Code. O processo lê o JSON 
 | `UserPromptSubmit` | `task_started` | Inicia a animação de trabalho |
 | `PermissionRequest` | `approval_required` | Mostra um aviso persistente; a permissão continua sendo decidida na interface original |
 | `Notification` com `permission_prompt` | `approval_required` | Mostra o mesmo aviso de permissão |
-| `Notification` com `idle_prompt`, `elicitation_dialog`, `elicitation_url_dialog` ou `agent_needs_input` | `input_required` | Indica que Claude Code aguarda entrada do usuário |
+| `Notification` com `elicitation_dialog`, `elicitation_url_dialog` ou `agent_needs_input` | `input_required` | Indica que Claude Code aguarda entrada do usuário |
 | `PreToolUse` | `working` | Disponível para consumidores do adaptador que precisem exibir atividade de ferramenta |
 | `Stop` | `idle` | Encerra a animação sem afirmar sucesso |
 | `StopFailure` | `task_failed` | Mostra falha de API |
 
-`PermissionRequest` é executado quando Claude Code está prestes a pedir permissão. A notificação `permission_prompt` pode chegar depois, então os dois eventos podem produzir o mesmo aviso. Notificações com tipos desconhecidos são ignoradas. `SessionEnd` não é usado: encerra uma sessão, que pode incluir `/clear`, logout ou troca de conversa, e não confirma que uma tarefa terminou.
+`PermissionRequest` é executado quando Claude Code está prestes a pedir permissão. A notificação `permission_prompt` pode chegar depois, então os dois eventos podem produzir o mesmo aviso. `idle_prompt` não é encaminhado: é uma notificação atrasada de inatividade após uma resposta concluída, não uma solicitação de entrada pendente. Notificações com tipos desconhecidos são ignoradas. `SessionEnd` não é usado: encerra uma sessão, que pode incluir `/clear`, logout ou troca de conversa, e não confirma que uma tarefa terminou.
 
 O mapper não lê nem copia prompts, argumentos de ferramentas, mensagens do agente, notificações originais, detalhes de erro, transcrições ou caminhos. Ele envia somente os campos do evento v1, com títulos e mensagens fixos. Os hooks não escrevem em `stdout`/`stderr`, não retornam decisões e ignoram falhas de leitura, mapeamento ou transporte para que Claude Code continue. Se `task_id` não vier no evento, `session_id` é usado como identificador estável.
 
@@ -27,6 +27,6 @@ Abra Claude Code e revise as definições na tela `/hooks`. Os hooks registrados
 ## Limitações
 
 - `Stop` significa que Claude terminou uma resposta; não significa que o resultado foi bem-sucedido.
-- `StopFailure` cobre encerramentos causados por erro de API, não qualquer erro de ferramenta.
+- `StopFailure` cobre encerramentos causados por erro de API, não qualquer erro de ferramenta. Uma nova tentativa (`UserPromptSubmit`) na mesma identidade de sessão/tarefa substitui o aviso persistente de falha; solicitações de permissão e entrada continuam aguardando um evento terminal explícito.
 - O Lúmen é opcional. Sem a extensão ou a sessão D-Bus, os hooks terminam sem interferir no Claude Code.
 - A configuração atual usa o transporte D-Bus da sessão GNOME.

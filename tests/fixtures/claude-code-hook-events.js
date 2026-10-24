@@ -26,14 +26,6 @@ export const CLAUDE_CODE_HOOK_FIXTURES = Object.freeze([
         kind: 'approval_required',
     },
     {
-        name: 'Notification idle_prompt',
-        input: {
-            hook_event_name: 'Notification', notification_type: 'idle_prompt',
-            session_id: 'session-notification-idle', message: 'secret text',
-        },
-        kind: 'input_required',
-    },
-    {
         name: 'Notification elicitation_dialog',
         input: {
             hook_event_name: 'Notification', notification_type: 'elicitation_dialog',

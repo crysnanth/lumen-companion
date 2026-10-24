@@ -110,8 +110,14 @@ export class PetStateMachine {
         // PermissionRequest. Keep a persistent prompt visible until a terminal
         // event confirms that this task has ended. Semantic outcomes such as
         // task_failed still replace the pending state for this task.
-        if (currentTask?.persistent && GENERIC_ACTIVITY_EVENTS.has(event.kind))
-            return {accepted: true, ...this.getSnapshot()};
+        if (currentTask?.persistent && GENERIC_ACTIVITY_EVENTS.has(event.kind)) {
+            // A fresh turn in the same task identity is a retry after failure.
+            // Let it clear only `failed`; permission and input prompts remain
+            // visible until an explicit terminal event resolves them.
+            const isRetryAfterFailure = currentTask.state === 'failed' && event.kind === 'task_started';
+            if (!isRetryAfterFailure)
+                return {accepted: true, ...this.getSnapshot()};
+        }
 
         if (TERMINAL_EVENTS.has(event.kind))
             this._tasks.delete(key);

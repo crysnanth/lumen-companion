@@ -1,5 +1,6 @@
 import {mapClaudeCodeHookEvent} from '../integrations/claude-code/hook-mapper.js';
 import {getAgentAdapter} from '../integrations/catalog.js';
+import {PetStateMachine} from '../gnome-extension/lib/state-machine.js';
 import {CLAUDE_CODE_HOOK_FIXTURES} from './fixtures/claude-code-hook-events.js';
 
 function assert(condition, message) {
@@ -39,6 +40,8 @@ assert(fallbackTaskId?.task_id === 'stable-session', 'missing or malformed task_
 
 assert(mapClaudeCodeHookEvent({hook_event_name: 'Notification', notification_type: 'auth_success', session_id: 's'}) === null,
     'unmapped notification types are ignored');
+assert(mapClaudeCodeHookEvent({hook_event_name: 'Notification', notification_type: 'idle_prompt', session_id: 's'}) === null,
+    'idle_prompt after a completed response is ignored instead of creating a persistent input request');
 assert(mapClaudeCodeHookEvent({hook_event_name: 'SessionEnd', session_id: 's', reason: 'other'}) === null,
     'SessionEnd does not imply task completion or idle');
 assert(mapClaudeCodeHookEvent({hook_event_name: 'UserPromptSubmit'}) === null,
@@ -50,5 +53,37 @@ assert(mapClaudeCodeHookEvent({hook_event_name: 'UserPromptSubmit', session_id: 
 assert(mapClaudeCodeHookEvent(null) === null && mapClaudeCodeHookEvent([]) === null &&
     mapClaudeCodeHookEvent({hook_event_name: 'Unknown', session_id: 's'}) === null,
 'malformed and unsupported hook input is ignored');
+
+function eventAt(input, timestamp) {
+    const event = mapClaudeCodeHookEvent(input);
+    return event ? {...event, timestamp} : null;
+}
+
+const lifecycleMachine = new PetStateMachine();
+const session = 'idle-prompt-lifecycle';
+let lifecycleResult = lifecycleMachine.handleEvent(eventAt({
+    hook_event_name: 'UserPromptSubmit', session_id: session,
+}, '2026-10-24T12:00:00Z'));
+assert(lifecycleResult.state === 'working', 'prompt starts the Claude Code task');
+lifecycleResult = lifecycleMachine.handleEvent(eventAt({
+    hook_event_name: 'Stop', session_id: session,
+}, '2026-10-24T12:00:01Z'));
+assert(lifecycleResult.state === 'idle', 'Stop clears the completed response');
+const delayedIdlePrompt = mapClaudeCodeHookEvent({
+    hook_event_name: 'Notification', notification_type: 'idle_prompt', session_id: session,
+});
+assert(delayedIdlePrompt === null, 'delayed idle notification does not reopen a completed task');
+lifecycleResult = lifecycleMachine.handleEvent(eventAt({
+    hook_event_name: 'UserPromptSubmit', session_id: session,
+}, '2026-10-24T12:00:03Z'));
+assert(lifecycleResult.state === 'working', 'a later prompt starts normally after the ignored idle_prompt');
+lifecycleResult = lifecycleMachine.handleEvent(eventAt({
+    hook_event_name: 'PreToolUse', session_id: session,
+}, '2026-10-24T12:00:04Z'));
+assert(lifecycleResult.state === 'working', 'tool activity stays visible after a later prompt');
+lifecycleResult = lifecycleMachine.handleEvent(eventAt({
+    hook_event_name: 'Stop', session_id: session,
+}, '2026-10-24T12:00:05Z'));
+assert(lifecycleResult.state === 'idle', 'later Claude Code task ends cleanly');
 
 print('PASS: Claude Code hooks map safely to v1 events without exposing hook input');

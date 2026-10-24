@@ -38,11 +38,23 @@ assert(result.accepted && result.state === 'idle', 'interruption clears pending 
 
 const approvalGuardMachine = new PetStateMachine();
 approvalGuardMachine.handleEvent(event('approval_required', 'task-approved', 1));
-result = approvalGuardMachine.handleEvent(event('working', 'task-approved', 2));
+result = approvalGuardMachine.handleEvent(event('task_started', 'task-approved', 2));
+assert(result.accepted && result.state === 'approval_required',
+    'a new task_started cannot hide a pending approval');
+result = approvalGuardMachine.handleEvent(event('working', 'task-approved', 3));
 assert(result.accepted && result.state === 'approval_required',
     'uncorrelated activity from another parallel tool cannot hide a pending approval');
-result = approvalGuardMachine.handleEvent(event('idle', 'task-approved', 3));
+result = approvalGuardMachine.handleEvent(event('idle', 'task-approved', 4));
 assert(result.accepted && result.state === 'idle', 'turn stop clears the approval after the accepted tool flow ends');
+
+const inputGuardMachine = new PetStateMachine();
+inputGuardMachine.handleEvent(event('input_required', 'task-input-pending', 1));
+result = inputGuardMachine.handleEvent(event('task_started', 'task-input-pending', 2));
+assert(result.accepted && result.state === 'input_required',
+    'a new task_started cannot hide a pending input request');
+result = inputGuardMachine.handleEvent(event('working', 'task-input-pending', 3));
+assert(result.accepted && result.state === 'input_required',
+    'generic activity cannot hide a pending input request');
 
 const deniedApprovalMachine = new PetStateMachine();
 deniedApprovalMachine.handleEvent(event('approval_required', 'task-denied', 1));
@@ -60,6 +72,24 @@ const failedAfterInputMachine = new PetStateMachine();
 failedAfterInputMachine.handleEvent(event('input_required', 'task-fails-after-input', 1));
 result = failedAfterInputMachine.handleEvent(event('task_failed', 'task-fails-after-input', 2));
 assert(result.accepted && result.state === 'failed', 'a definitive failure replaces a pending input request in the same task');
+
+const retryMachine = new PetStateMachine();
+retryMachine.handleEvent(event('task_started', 'retry-task', 20, {session_id: 'retry-session'}));
+result = retryMachine.handleEvent(event('task_failed', 'retry-task', 21, {session_id: 'retry-session'}));
+assert(result.accepted && result.state === 'failed', 'API failure is visible before a retry');
+result = retryMachine.handleEvent(event('task_started', 'retry-task', 22, {session_id: 'retry-session'}));
+assert(result.accepted && result.state === 'working', 'a new task_started clears a prior failure for the same task identity');
+result = retryMachine.handleEvent(event('working', 'retry-task', 23, {session_id: 'retry-session'}));
+assert(result.accepted && result.state === 'working', 'activity after retry remains visible');
+result = retryMachine.handleEvent(event('idle', 'retry-task', 24, {session_id: 'retry-session'}));
+assert(result.accepted && result.state === 'idle', 'retry lifecycle ends cleanly');
+
+const concurrentRetryMachine = new PetStateMachine();
+concurrentRetryMachine.handleEvent(event('task_failed', 'shared-fallback-id', 25, {session_id: 'failed-session'}));
+result = concurrentRetryMachine.handleEvent(event('task_started', 'shared-fallback-id', 26, {session_id: 'other-session'}));
+assert(result.accepted && result.state === 'failed', 'a retry in another session does not clear a persistent failure');
+result = concurrentRetryMachine.handleEvent(event('task_started', 'shared-fallback-id', 27, {session_id: 'failed-session'}));
+assert(result.accepted && result.state === 'working', 'retry clears only the failure with the same source, session, and task identity');
 
 machine.handleEvent(event('task_started', 'task-work', 4));
 machine.handleEvent(event('task_failed', 'task-failure', 5));
