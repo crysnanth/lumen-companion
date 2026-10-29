@@ -7,6 +7,7 @@ import {PetView} from './lib/pet-view.js';
 import {BehaviorController} from './lib/behavior-controller.js';
 import {AutonomousWalker} from './lib/autonomous-walker.js';
 import {DialogueController} from './lib/dialogue-controller.js';
+import {DialogueTimeout} from './lib/dialogue-timeout.js';
 import {SoundController} from './lib/sound-controller.js';
 import {IntegrationConfigWatcher} from './lib/integration-config.js';
 import {
@@ -77,7 +78,11 @@ export default class LumenPetExtension extends Extension {
         });
         this._dialogue = new DialogueController();
         this._dialogueActive = false;
-        this._dialogueTimeoutId = 0;
+        this._dialogueTimeout = new DialogueTimeout({
+            schedule: (delayMs, callback) => GLib.timeout_add(GLib.PRIORITY_DEFAULT, delayMs, callback),
+            cancel: sourceId => GLib.Source.remove(sourceId),
+            onTimeout: () => this._finishDialogue(),
+        });
         this._behavior = new BehaviorController(action => this._onBehaviorAction(action));
         this._behavior.setEnabled(this._settings.get_boolean('autonomous-behaviors-enabled'));
         this._behavior.setFrequency(this._settings.get_int('behavior-frequency'));
@@ -315,6 +320,9 @@ export default class LumenPetExtension extends Extension {
     }
 
     _handlePetClick() {
+        // Clear a previous monotonic GLib source before the wall-clock based
+        // DialogueController decides whether its scene has expired.
+        this._dialogueTimeout?.cancel();
         const snapshot = this._controller.getSnapshot();
         if (snapshot.tasks.length > 0) {
             this._finishDialogue();
@@ -334,11 +342,7 @@ export default class LumenPetExtension extends Extension {
         }
         this._behavior.pause('dialogue');
         this._dialogueActive = true;
-        this._dialogueTimeoutId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, dialogue.timeoutMs, () => {
-            this._dialogueTimeoutId = 0;
-            this._finishDialogue();
-            return GLib.SOURCE_REMOVE;
-        });
+        this._dialogueTimeout.start(dialogue.timeoutMs);
         const actions = dialogue.choices.map(choice => ({label: choice.label, onClick: () => {
             const selected = this._dialogue.choose(choice.id);
             if (!selected)
@@ -354,10 +358,7 @@ export default class LumenPetExtension extends Extension {
     _finishDialogue(hideBubble = true) {
         const wasActive = this._dialogueActive;
         this._dialogueActive = false;
-        if (this._dialogueTimeoutId) {
-            GLib.Source.remove(this._dialogueTimeoutId);
-            this._dialogueTimeoutId = 0;
-        }
+        this._dialogueTimeout?.cancel();
         this._dialogue?.cancel();
         this._behavior?.resume('dialogue');
         if (hideBubble && wasActive)
