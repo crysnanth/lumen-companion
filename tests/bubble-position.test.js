@@ -27,4 +27,20 @@ const afterHotplug = getBubblePlacement({petPosition: {x: 1100, y: 300}, petSize
 assert(afterHotplug.monitor === right && afterHotplug.x >= right.x + 8,
     'the bubble is placed on a surviving monitor after the monitor layout changes');
 
-print('PASS: persistent bubble placement follows walking, dragging and monitor topology changes');
+const corners = [
+    {x: left.x + 8, y: left.y + 8},
+    {x: left.x + left.width - petSize.width - 8, y: left.y + 8},
+    {x: left.x + 8, y: left.y + left.height - petSize.height - 8},
+    {x: left.x + left.width - petSize.width - 8, y: left.y + left.height - petSize.height - 8},
+];
+for (const petPosition of corners) {
+    const placement = getBubblePlacement({petPosition, petSize, bubbleSize, monitors: [left],
+        primaryMonitor: left, controlsHeight: 30, hasActions: true});
+    assert(placement.x >= left.x && placement.y >= left.y &&
+        placement.x + placement.width <= left.x + left.width &&
+        placement.y + placement.height <= left.y + left.height &&
+        placement.controlsY >= placement.y && placement.controlsY + 30 <= placement.y + placement.height,
+    'bubble and action row stay within monitor bounds in all four corners');
+}
+
+print('PASS: persistent bubble placement follows movement, topology changes and four-corner layout');

@@ -14,6 +14,8 @@ test_files=(
     tests/codex-hook-mapper.test.js
     tests/config-store.test.js
     tests/dialogue-controller.test.js
+    tests/dialogue-orchestration.test.js
+    tests/dialogue-timeout.test.js
     tests/event-transport.test.js
     tests/hook-installer.test.js
     tests/integration-preferences.test.js

@@ -46,6 +46,7 @@ const controller = new BehaviorController(action => actions.push(action?.id ?? n
     actions: [
         {id: 'walk', animation: 'walk-right', durationMs: 300, weight: 1, cooldownMs: 500},
         {id: 'wave', animation: 'waving', durationMs: 200, weight: 1, cooldownMs: 500},
+        {id: 'pet', animation: 'patted', durationMs: 180, weight: 1, cooldownMs: 500},
     ],
 });
 
@@ -78,6 +79,8 @@ controller.setAgentState('idle');
 assert(clock.timers.size === 0, 'an agent lifecycle cannot clear a pending dialogue pause');
 controller.resume('dialogue');
 assert(clock.timers.size === 1, 'ending a dialogue pause rearms autonomy after the agent becomes idle');
+assert(controller.requestAction('pet'), 'a chosen dialogue action starts after autonomy resumes');
+assert(clock.timers.size === 1, 'a manual action replaces the idle timer instead of orphaning it');
 controller.destroy();
-assert(clock.timers.size === 0, 'destroy removes pending action timers');
+assert(clock.timers.size === 0, 'destroy removes the active action timer with no orphan remaining');
 print('PASS: autonomous action scheduling, priority interruption, cooldown, pause and cleanup');
