@@ -178,6 +178,9 @@ export class BehaviorController {
     }
 
     _beginAction(action) {
+        // A manual action may replace the idle timer scheduled by resume().
+        // Keep the completed action as the only owner of a pending timer.
+        this._clearTimer();
         this._activeAction = action;
         this._cooldowns.set(action.id, this._now() + action.cooldownMs);
         this._onAction?.(action);
