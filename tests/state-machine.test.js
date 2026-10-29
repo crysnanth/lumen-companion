@@ -47,6 +47,58 @@ assert(result.accepted && result.state === 'approval_required',
 result = approvalGuardMachine.handleEvent(event('idle', 'task-approved', 4));
 assert(result.accepted && result.state === 'idle', 'turn stop clears the approval after the accepted tool flow ends');
 
+const equalTimestampTerminalMachine = new PetStateMachine();
+equalTimestampTerminalMachine.handleEvent(event('approval_required', 'same-millisecond', 1));
+result = equalTimestampTerminalMachine.handleEvent(event('idle', 'same-millisecond', 1));
+assert(result.accepted && result.state === 'idle',
+    'a terminal event clears a permission notice even when both hooks share a timestamp');
+result = equalTimestampTerminalMachine.handleEvent(event('task_started', 'same-millisecond', 1));
+assert(!result.accepted && result.state === 'idle',
+    'a nonterminal task start at the terminal timestamp is rejected');
+result = equalTimestampTerminalMachine.handleEvent(event('approval_required', 'same-millisecond', 2));
+assert(!result.accepted && result.state === 'idle',
+    'a delayed permission event cannot reopen a task after its terminal event');
+result = equalTimestampTerminalMachine.handleEvent(event('task_started', 'same-millisecond', 3));
+assert(result.accepted && result.state === 'working',
+    'a later task start can reuse the identity after the prior task ended');
+
+const equalTimestampProgressMachine = new PetStateMachine();
+equalTimestampProgressMachine.handleEvent(event('approval_required', 'same-time-progress', 1));
+result = equalTimestampProgressMachine.handleEvent(event('working', 'same-time-progress', 2));
+assert(result.accepted && result.state === 'approval_required',
+    'tool activity keeps the pending approval visible');
+result = equalTimestampProgressMachine.handleEvent(event('approval_required', 'same-time-progress', 2));
+assert(!result.accepted && result.reason === 'out-of-order event' && result.state === 'approval_required',
+    'a same-time delayed approval cannot reopen or replace the current pending notification');
+
+const equalTimestampFailureRetryMachine = new PetStateMachine();
+equalTimestampFailureRetryMachine.handleEvent(event('task_failed', 'same-time-retry', 1));
+result = equalTimestampFailureRetryMachine.handleEvent(event('task_started', 'same-time-retry', 1));
+assert(!result.accepted && result.reason === 'out-of-order event' && result.state === 'failed',
+    'a same-time task start cannot replace a persistent failure');
+
+const equalTimestampApprovalFailureMachine = new PetStateMachine();
+equalTimestampApprovalFailureMachine.handleEvent(event('approval_required', 'same-time-approval-failure', 1));
+result = equalTimestampApprovalFailureMachine.handleEvent(event('task_failed', 'same-time-approval-failure', 1));
+assert(result.accepted && result.state === 'failed',
+    'a same-time definitive failure replaces a pending approval');
+
+const equalTimestampInputFailureMachine = new PetStateMachine();
+equalTimestampInputFailureMachine.handleEvent(event('input_required', 'same-time-input-failure', 1));
+result = equalTimestampInputFailureMachine.handleEvent(event('task_failed', 'same-time-input-failure', 1));
+assert(result.accepted && result.state === 'failed',
+    'a same-time definitive failure replaces a pending input request');
+
+const delayedPromptMachine = new PetStateMachine();
+delayedPromptMachine.handleEvent(event('task_started', 'late-notification', 10, {source: 'claude_code'}));
+delayedPromptMachine.handleEvent(event('idle', 'late-notification', 11, {source: 'claude_code'}));
+result = delayedPromptMachine.handleEvent(event('approval_required', 'late-notification', 12, {source: 'claude_code'}));
+assert(!result.accepted && result.state === 'idle',
+    'a delayed approval notification after Stop cannot recreate a stale alert');
+result = delayedPromptMachine.handleEvent(event('task_started', 'late-notification', 13, {source: 'claude_code'}));
+assert(result.accepted && result.state === 'working',
+    'a later Claude turn reopens the stable per-session identity');
+
 const inputGuardMachine = new PetStateMachine();
 inputGuardMachine.handleEvent(event('input_required', 'task-input-pending', 1));
 result = inputGuardMachine.handleEvent(event('task_started', 'task-input-pending', 2));

@@ -53,15 +53,18 @@ const permission = mapCodexHookEvent({
     hook_event_name: 'PermissionRequest',
     session_id: 'session-1',
     turn_id: 'turn-1',
+    tool_name: 'Bash',
     tool_input: {command: 'sensitive command'},
 });
 assert(permission?.kind === 'approval_required', 'permission request maps to approval state');
+assert(permission.tool_name === 'Bash', 'permission events retain the safe tool name');
 assert(!JSON.stringify(permission).includes('sensitive command'), 'tool input is discarded');
 
 const preTool = mapCodexHookEvent({
     hook_event_name: 'PreToolUse',
     session_id: 'session-1',
     turn_id: 'turn-1',
+    tool_name: 'Bash',
     tool_input: {command: 'sensitive command'},
 });
 assert(preTool?.kind === 'working', 'tool start is reported as activity');
@@ -73,10 +76,30 @@ approvalFlowMachine.handleEvent(pendingApproval);
 const acceptedToolActivity = {
     ...preTool,
     timestamp: '2026-10-24T11:00:01Z',
+    tool_use_id: 'call-1',
 };
 let flowResult = approvalFlowMachine.handleEvent(acceptedToolActivity);
 assert(flowResult.accepted && flowResult.state === 'approval_required',
-    'accepted tool activity cannot be mistaken for resolution of a parallel approval');
+    'a tool start with the same name cannot resolve a permission without a shared call id');
+
+const parallelSameToolMachine = new PetStateMachine();
+parallelSameToolMachine.handleEvent({...pendingApproval, timestamp: '2026-10-24T11:02:00Z'});
+flowResult = parallelSameToolMachine.handleEvent({
+    ...mapCodexHookEvent({hook_event_name: 'PreToolUse', session_id: 'session-1', turn_id: 'turn-1', tool_name: 'Bash'}),
+    timestamp: '2026-10-24T11:02:01Z',
+    tool_use_id: 'call-2',
+});
+assert(flowResult.accepted && flowResult.state === 'approval_required',
+    'a parallel call to the same tool cannot clear another call pending approval');
+
+const unrelatedToolMachine = new PetStateMachine();
+unrelatedToolMachine.handleEvent({...pendingApproval, timestamp: '2026-10-24T11:01:00Z'});
+flowResult = unrelatedToolMachine.handleEvent({
+    ...mapCodexHookEvent({hook_event_name: 'PreToolUse', session_id: 'session-1', turn_id: 'turn-1', tool_name: 'apply_patch'}),
+    timestamp: '2026-10-24T11:01:01Z',
+});
+assert(flowResult.accepted && flowResult.state === 'approval_required',
+    'activity from a different tool does not dismiss an unrelated pending permission');
 const stopped = {
     ...mapCodexHookEvent({hook_event_name: 'Stop', session_id: 'session-1', turn_id: 'turn-1'}),
     timestamp: '2026-10-24T11:00:02Z',

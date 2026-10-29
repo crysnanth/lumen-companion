@@ -8,6 +8,7 @@ const TASK_STATES = {
 };
 
 const TERMINAL_EVENTS = new Set(['task_completed', 'task_interrupted', 'idle']);
+const DEFINITIVE_FAILURE_EVENTS = new Set(['task_failed']);
 const GENERIC_ACTIVITY_EVENTS = new Set(['task_started', 'working', 'thinking']);
 const EVENT_KINDS = new Set([...Object.keys(TASK_STATES), ...TERMINAL_EVENTS]);
 const MAX_TITLE_LENGTH = 80;
@@ -76,6 +77,7 @@ export class PetStateMachine {
         this._clock = clock;
         this._tasks = new Map();
         this._lastTimestampByTask = new Map();
+        this._lastKindByTask = new Map();
         this._dedupeKeys = new Set();
         this._dedupeQueue = [];
     }
@@ -98,7 +100,11 @@ export class PetStateMachine {
             return {accepted: false, reason: 'duplicate event', ...this.getSnapshot()};
 
         const previousTimestamp = this._lastTimestampByTask.get(key);
-        if (previousTimestamp !== undefined && timestamp <= previousTimestamp)
+        const previousKind = this._lastKindByTask.get(key);
+        const mayShareTimestamp = TERMINAL_EVENTS.has(event.kind) || DEFINITIVE_FAILURE_EVENTS.has(event.kind);
+        if (previousTimestamp !== undefined && (timestamp < previousTimestamp ||
+            (timestamp === previousTimestamp && !mayShareTimestamp) ||
+            (TERMINAL_EVENTS.has(previousKind) && event.kind !== 'task_started')))
             return {accepted: false, reason: 'out-of-order event', ...this.getSnapshot()};
 
         if (!TERMINAL_EVENTS.has(event.kind) && !this._tasks.has(key) && this._tasks.size >= MAX_ACTIVE_TASKS)
@@ -106,12 +112,13 @@ export class PetStateMachine {
 
         this._rememberEvent(eventKey);
         this._rememberTaskTimestamp(key, timestamp);
+        this._lastKindByTask.set(key, event.kind);
 
         const currentTask = this._tasks.get(key);
-        // Progress hooks do not carry a correlation key shared with
-        // PermissionRequest. Keep a persistent prompt visible until a terminal
-        // event confirms that this task has ended. Semantic outcomes such as
-        // task_failed still replace the pending state for this task.
+        // PermissionRequest and PreToolUse do not share a per-tool correlation
+        // identifier. Tool names can repeat during a turn, so activity alone
+        // cannot resolve a pending permission without risking another call's
+        // alert. Keep it until a terminal event or a definitive failure.
         if (currentTask?.persistent && GENERIC_ACTIVITY_EVENTS.has(event.kind)) {
             // A fresh turn in the same task identity is a retry after failure.
             // Let it clear only `failed`; permission and input prompts remain
@@ -134,6 +141,7 @@ export class PetStateMachine {
                 persistent: Boolean(definition.persistent),
                 title: cleanText(event.title, MAX_TITLE_LENGTH) || DEFAULT_TITLES[event.kind] || '',
                 message: cleanText(event.message, MAX_MESSAGE_LENGTH),
+                tool_name: typeof event.tool_name === 'string' ? cleanText(event.tool_name, MAX_IDENTIFIER_LENGTH) : '',
                 timestamp,
                 receivedAt: this._clock(),
             });
@@ -186,6 +194,10 @@ export class PetStateMachine {
         for (const key of this._lastTimestampByTask.keys()) {
             if (belongsToRemovedSource(key))
                 this._lastTimestampByTask.delete(key);
+        }
+        for (const key of this._lastKindByTask.keys()) {
+            if (belongsToRemovedSource(key))
+                this._lastKindByTask.delete(key);
         }
         this._dedupeQueue = this._dedupeQueue.filter(eventKey => {
             try {
@@ -275,6 +287,7 @@ export class PetStateMachine {
         if (this._lastTimestampByTask.size > MAX_TASK_TIMESTAMPS) {
             const oldestKey = this._lastTimestampByTask.keys().next().value;
             this._lastTimestampByTask.delete(oldestKey);
+            this._lastKindByTask.delete(oldestKey);
         }
     }
 }

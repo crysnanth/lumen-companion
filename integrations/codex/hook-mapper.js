@@ -46,6 +46,8 @@ export function mapCodexHookEvent(hookEvent) {
         kind: mapped.kind,
         title: mapped.title,
         message: mapped.message,
+        ...(typeof hookEvent.tool_name === 'string' && hookEvent.tool_name.length > 0
+            ? {tool_name: hookEvent.tool_name.slice(0, 128)} : {}),
         timestamp: new Date().toISOString(),
     };
 }
