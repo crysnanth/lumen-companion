@@ -12,9 +12,11 @@ A integração atual usa os command hooks oficiais do Codex. O processo do hook 
 | `Interrupt` | `task_interrupted` | Limpa a tarefa interrompida |
 | `Stop` | `idle` | Limpa o estado sem afirmar que houve sucesso |
 
-O aviso de aprovação é persistente. Embora `PreToolUse` informe que uma ferramenta vai começar, o Codex não documenta um `tool_use_id` compartilhado com `PermissionRequest`; portanto esse evento pode pertencer a outra ferramenta paralela. Por segurança, atividade não correlacionada não apaga o aviso. Ele é removido por `Stop` (`idle`) ou `Interrupt`. Assim, após uma aprovação aceita, o aviso pode permanecer até o turno encerrar; após uma negação, permanece até o Codex encerrar ou interromper o turno.
+O Codex não expõe `tool_use_id` em `PermissionRequest`, mas ambos os hooks informam `tool_name`. Quando um `PreToolUse` da mesma ferramenta chega, o Lúmen limpa o aviso porque a execução já passou pelo roteamento da permissão; uma ferramenta diferente não limpa um pedido pendente. O hook também pode ser executado quando o Codex encaminha a decisão para revisão automática, sem exibir uma pergunta à pessoa. Como o payload não informa quem recebeu a decisão, esse pareamento reduz o aviso falso depois que a ferramenta começa, mas pedidos negados automaticamente podem continuar visíveis até o fim/interrupção do turno.
 
-O mapper descarta `prompt`, `tool_input`, mensagens finais, comandos e caminhos. O evento inclui somente os campos do contrato necessários à observação (`schema_version`, `source`, `session_id`, `task_id`, `kind`, `title`, `message` e `timestamp`); `task_id` usa `turn_id`, com fallback para `session_id`. A notificação usa timeout de 500 ms e falhas de leitura, mapeamento, serialização ou transporte são ignoradas para que o Codex continue.
+Eventos terminais têm precedência sobre notificações atrasadas: depois de `Stop` ou `Interrupt`, permissões tardias da mesma tarefa são descartadas até um novo `UserPromptSubmit`. Eventos subsequentes podem compartilhar o mesmo milissegundo; nessa situação, o evento terminal ainda encerra o estado anterior.
+
+O mapper descarta `prompt`, `tool_input`, mensagens finais, comandos e caminhos. Para parear a notificação, também conserva somente o nome não sensível da ferramenta quando presente. `task_id` usa `turn_id`, com fallback para `session_id`. A notificação usa timeout de 500 ms e falhas de leitura, mapeamento, serialização ou transporte são ignoradas para que o Codex continue.
 
 Os eventos novos usam `source: "codex_cli"`. A extensão ainda aceita e normaliza `source: "codex"`, usado pela versão anterior do adaptador, para manter compatibilidade com mensagens v1 já produzidas.
 

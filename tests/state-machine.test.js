@@ -47,6 +47,28 @@ assert(result.accepted && result.state === 'approval_required',
 result = approvalGuardMachine.handleEvent(event('idle', 'task-approved', 4));
 assert(result.accepted && result.state === 'idle', 'turn stop clears the approval after the accepted tool flow ends');
 
+const equalTimestampTerminalMachine = new PetStateMachine();
+equalTimestampTerminalMachine.handleEvent(event('approval_required', 'same-millisecond', 1));
+result = equalTimestampTerminalMachine.handleEvent(event('idle', 'same-millisecond', 1));
+assert(result.accepted && result.state === 'idle',
+    'a terminal event clears a permission notice even when both hooks share a timestamp');
+result = equalTimestampTerminalMachine.handleEvent(event('approval_required', 'same-millisecond', 2));
+assert(!result.accepted && result.state === 'idle',
+    'a delayed permission event cannot reopen a task after its terminal event');
+result = equalTimestampTerminalMachine.handleEvent(event('task_started', 'same-millisecond', 2));
+assert(result.accepted && result.state === 'working',
+    'a new task start can reuse the identity after the prior task ended');
+
+const delayedPromptMachine = new PetStateMachine();
+delayedPromptMachine.handleEvent(event('task_started', 'late-notification', 10, {source: 'claude_code'}));
+delayedPromptMachine.handleEvent(event('idle', 'late-notification', 11, {source: 'claude_code'}));
+result = delayedPromptMachine.handleEvent(event('approval_required', 'late-notification', 12, {source: 'claude_code'}));
+assert(!result.accepted && result.state === 'idle',
+    'a delayed approval notification after Stop cannot recreate a stale alert');
+result = delayedPromptMachine.handleEvent(event('task_started', 'late-notification', 13, {source: 'claude_code'}));
+assert(result.accepted && result.state === 'working',
+    'a later Claude turn reopens the stable per-session identity');
+
 const inputGuardMachine = new PetStateMachine();
 inputGuardMachine.handleEvent(event('input_required', 'task-input-pending', 1));
 result = inputGuardMachine.handleEvent(event('task_started', 'task-input-pending', 2));

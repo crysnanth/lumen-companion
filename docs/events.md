@@ -54,7 +54,7 @@ Falhas ficam em destaque por até cinco minutos para cobrir hooks terminais perd
 
 | `source` | Situação e eventos que pode reportar |
 |---|---|
-| `codex_cli` | Adaptador disponível: `task_started`, `approval_required`, `working`, `task_interrupted` e `idle`. `PreToolUse` reporta atividade, mas não confirma que resolveu um pedido específico. Como não há ID compartilhado com `PermissionRequest`, o aviso persiste até `Stop` (`idle`) ou interrupção. O hook `Stop` não informa sucesso/falha. Os hooks documentados não reportam `task_failed` nem `input_required`. |
+| `codex_cli` | Adaptador disponível: `task_started`, `approval_required`, `working`, `task_interrupted` e `idle`. `PermissionRequest` e `PreToolUse` não compartilham `tool_use_id`; o Lúmen usa o nome da ferramenta como correlação limitada e limpa o aviso quando a mesma ferramenta começa. O evento de permissão pode também passar por revisão automática sem pedir ação à pessoa, limitação que o payload atual não identifica. `Stop` encerra a tarefa sem declarar sucesso; pedidos tardios após o terminal são descartados até o próximo `task_started`. Os hooks não reportam `task_failed` nem `input_required`. |
 | `claude_code` | Registrado como planejado no catálogo; ainda não há hook executável instalado/conectado. O mapeador de preparação cobre `UserPromptSubmit` → `task_started`, `PermissionRequest` → `approval_required`, `PreToolUse` → `working`, `Stop` → `idle` e `StopFailure` → `task_failed` somente para erro de API que encerra o turno. `Stop` não prova sucesso; pedidos de permissão devem ser resolvidos na interface original. |
 | `simulator` | Emissor local para desenvolvimento e demonstração; pode enviar todos os tipos aceitos. |
 
@@ -62,7 +62,7 @@ O identificador legado `codex` continua aceito para eventos v1 gravados por vers
 
 ## Ordenação, deduplicação e limites
 
-- Cada evento de uma mesma tarefa deve ter timestamp posterior ao evento anterior. Um timestamp igual ou anterior é rejeitado como fora de ordem.
+- Eventos com timestamp anterior ao último evento da tarefa são rejeitados. Um terminal com timestamp igual ao anterior é aceito para não deixar aviso preso; notificações posteriores de uma tarefa encerrada são descartadas até um novo `task_started`.
 - Reenvio com a mesma fonte, sessão, tarefa, tipo e timestamp é rejeitado como duplicado. São mantidas até 256 chaves de deduplicação.
 - O histórico de timestamps por tarefa e o número de tarefas ativas são limitados separadamente a 512 cada.
 - Identificadores inválidos, fontes com formato inválido, tipos desconhecidos, datas inválidas e versões não suportadas são rejeitados com `accepted: false` e um motivo curto.
