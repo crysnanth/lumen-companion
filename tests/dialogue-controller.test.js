@@ -33,4 +33,18 @@ now += 1000;
 assert(timeoutDialogue.choose('pet') === null && timeoutDialogue.start() !== null,
     'an expired dialogue cannot be answered and can be dismissed/restarted safely');
 timeoutDialogue.cancel();
+
+let monotonicNow = 5000;
+let civilNow = 5000;
+const monotonicDialogue = new DialogueController({now: () => monotonicNow,
+    cooldownMs: 0, dialogueCooldownMs: {pause: 0}, timeoutMs: 20000});
+monotonicDialogue.start();
+civilNow += 60000;
+assert(monotonicDialogue.choose('pet')?.behavior === 'pet',
+    'a civil clock jump does not expire a dialogue measured with the monotonic clock');
+monotonicDialogue.start();
+monotonicNow += 20000;
+assert(monotonicDialogue.choose('pet') === null,
+    'a dialogue expires when its monotonic timeout elapses');
+monotonicDialogue.cancel();
 print('PASS: local dialogue choices, roaming gate, one-shot answers and cooldown');

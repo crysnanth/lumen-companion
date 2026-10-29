@@ -76,7 +76,7 @@ export default class LumenPetExtension extends Extension {
                     this._persistPosition(...this._pet.actor.get_position());
             },
         });
-        this._dialogue = new DialogueController();
+        this._dialogue = new DialogueController({now: () => GLib.get_monotonic_time() / 1000});
         this._dialogueActive = false;
         this._dialogueTimeout = new DialogueTimeout({
             schedule: (delayMs, callback) => GLib.timeout_add(GLib.PRIORITY_DEFAULT, delayMs, callback),
