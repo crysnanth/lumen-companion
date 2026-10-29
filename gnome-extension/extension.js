@@ -144,7 +144,7 @@ export default class LumenPetExtension extends Extension {
 
         // The display actor passes input through; only the small center button
         // receives clicks, leaving the transparent area around the pet alone.
-        this._updateFullscreenTracking(this._settings.get_boolean('hide-in-fullscreen'));
+        this._updateFullscreenTracking();
 
         this._restorePosition();
         this._updateFullscreenBehavior();
@@ -167,7 +167,7 @@ export default class LumenPetExtension extends Extension {
         });
         this._fullscreenChangedId = this._settings.connect('changed::hide-in-fullscreen', () => {
             this._finishDialogue();
-            this._updateFullscreenTracking(this._settings.get_boolean('hide-in-fullscreen'));
+            this._updateFullscreenTracking();
             this._updateFullscreenBehavior();
         });
         this._soundsChangedId = this._settings.connect('changed::sounds-enabled', () => {
@@ -193,7 +193,7 @@ export default class LumenPetExtension extends Extension {
         });
         this._mouseInteractionsChangedId = this._settings.connect('changed::mouse-interactions-enabled', () => {
             this._finishDialogue();
-            this._pet.setMouseInteractionsEnabled(this._settings.get_boolean('mouse-interactions-enabled'));
+            this._updateFullscreenBehavior();
         });
         this._walkSpeedChangedId = this._settings.connect('changed::walk-speed', () => {
             this._finishDialogue();
@@ -388,7 +388,7 @@ export default class LumenPetExtension extends Extension {
         this._pet.setAutonomousAction(action);
     }
 
-    _updateFullscreenTracking(enabled) {
+    _updateFullscreenTracking() {
         if (!this._pet)
             return;
 
@@ -404,12 +404,15 @@ export default class LumenPetExtension extends Extension {
         Main.layoutManager.addTopChrome(this._pet.actor, {
             affectsStruts: false,
             affectsInputRegion: false,
-            trackFullscreen: enabled,
+            // Visibility is managed per monitor in _updateFullscreenBehavior.
+            // Shell chrome tracking has had inconsistent results across
+            // monitors, so do not let it override this policy.
+            trackFullscreen: false,
         });
         Main.layoutManager.addTopChrome(this._pet.clickTarget, {
             affectsStruts: false,
             affectsInputRegion: true,
-            trackFullscreen: enabled,
+            trackFullscreen: false,
         });
         this._petChromeAdded = true;
         this._pet.refreshBubbleFullscreenTracking();
@@ -419,6 +422,9 @@ export default class LumenPetExtension extends Extension {
         if (!this._behavior || !this._settings || !this._pet?.actor)
             return;
         if (!this._settings.get_boolean('hide-in-fullscreen')) {
+            this._pet.actor.visible = true;
+            this._pet.setMouseInteractionsEnabled(
+                this._settings.get_boolean('mouse-interactions-enabled'));
             this._behavior.resume('fullscreen');
             return;
         }
@@ -428,7 +434,11 @@ export default class LumenPetExtension extends Extension {
         const monitor = Main.layoutManager.monitors.find(item =>
             centerX >= item.x && centerX < item.x + item.width &&
             centerY >= item.y && centerY < item.y + item.height);
-        if (monitor && global.display.get_monitor_in_fullscreen(monitor.index))
+        const monitorInFullscreen = monitor && global.display.get_monitor_in_fullscreen(monitor.index);
+        this._pet.actor.visible = !monitorInFullscreen;
+        this._pet.setMouseInteractionsEnabled(
+            this._settings.get_boolean('mouse-interactions-enabled') && !monitorInFullscreen);
+        if (monitorInFullscreen)
             this._behavior.pause('fullscreen');
         else
             this._behavior.resume('fullscreen');

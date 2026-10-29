@@ -183,7 +183,7 @@ export default class LumenPetPreferences extends ExtensionPreferences {
 
         this._addBehaviorPage(window, settings);
 
-        this._addIntegrationsPage(window);
+        this._addIntegrationsPage(window, settings);
     }
 
     _addBehaviorPage(window, settings) {
@@ -280,7 +280,7 @@ export default class LumenPetPreferences extends ExtensionPreferences {
         interaction.add(reducedMotionRow);
     }
 
-    _addIntegrationsPage(window) {
+    _addIntegrationsPage(window, settings) {
         const page = new Adw.PreferencesPage({
             title: 'Integrações',
             icon_name: 'application-x-addon-symbolic',
