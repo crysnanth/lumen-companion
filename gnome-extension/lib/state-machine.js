@@ -8,6 +8,7 @@ const TASK_STATES = {
 };
 
 const TERMINAL_EVENTS = new Set(['task_completed', 'task_interrupted', 'idle']);
+const DEFINITIVE_FAILURE_EVENTS = new Set(['task_failed']);
 const GENERIC_ACTIVITY_EVENTS = new Set(['task_started', 'working', 'thinking']);
 const EVENT_KINDS = new Set([...Object.keys(TASK_STATES), ...TERMINAL_EVENTS]);
 const MAX_TITLE_LENGTH = 80;
@@ -100,8 +101,9 @@ export class PetStateMachine {
 
         const previousTimestamp = this._lastTimestampByTask.get(key);
         const previousKind = this._lastKindByTask.get(key);
+        const mayShareTimestamp = TERMINAL_EVENTS.has(event.kind) || DEFINITIVE_FAILURE_EVENTS.has(event.kind);
         if (previousTimestamp !== undefined && (timestamp < previousTimestamp ||
-            (timestamp === previousTimestamp && !TERMINAL_EVENTS.has(event.kind)) ||
+            (timestamp === previousTimestamp && !mayShareTimestamp) ||
             (TERMINAL_EVENTS.has(previousKind) && event.kind !== 'task_started')))
             return {accepted: false, reason: 'out-of-order event', ...this.getSnapshot()};
 

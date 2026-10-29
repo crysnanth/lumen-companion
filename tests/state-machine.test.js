@@ -77,6 +77,18 @@ result = equalTimestampFailureRetryMachine.handleEvent(event('task_started', 'sa
 assert(!result.accepted && result.reason === 'out-of-order event' && result.state === 'failed',
     'a same-time task start cannot replace a persistent failure');
 
+const equalTimestampApprovalFailureMachine = new PetStateMachine();
+equalTimestampApprovalFailureMachine.handleEvent(event('approval_required', 'same-time-approval-failure', 1));
+result = equalTimestampApprovalFailureMachine.handleEvent(event('task_failed', 'same-time-approval-failure', 1));
+assert(result.accepted && result.state === 'failed',
+    'a same-time definitive failure replaces a pending approval');
+
+const equalTimestampInputFailureMachine = new PetStateMachine();
+equalTimestampInputFailureMachine.handleEvent(event('input_required', 'same-time-input-failure', 1));
+result = equalTimestampInputFailureMachine.handleEvent(event('task_failed', 'same-time-input-failure', 1));
+assert(result.accepted && result.state === 'failed',
+    'a same-time definitive failure replaces a pending input request');
+
 const delayedPromptMachine = new PetStateMachine();
 delayedPromptMachine.handleEvent(event('task_started', 'late-notification', 10, {source: 'claude_code'}));
 delayedPromptMachine.handleEvent(event('idle', 'late-notification', 11, {source: 'claude_code'}));
