@@ -101,6 +101,7 @@ export class PetStateMachine {
         const previousTimestamp = this._lastTimestampByTask.get(key);
         const previousKind = this._lastKindByTask.get(key);
         if (previousTimestamp !== undefined && (timestamp < previousTimestamp ||
+            (timestamp === previousTimestamp && !TERMINAL_EVENTS.has(event.kind)) ||
             (TERMINAL_EVENTS.has(previousKind) && event.kind !== 'task_started')))
             return {accepted: false, reason: 'out-of-order event', ...this.getSnapshot()};
 
@@ -112,21 +113,16 @@ export class PetStateMachine {
         this._lastKindByTask.set(key, event.kind);
 
         const currentTask = this._tasks.get(key);
-        const matchingToolStarted = currentTask?.state === 'approval_required' &&
-            event.kind === 'working' && typeof currentTask.tool_name === 'string' &&
-            currentTask.tool_name.length > 0 && currentTask.tool_name === event.tool_name;
-        // Progress hooks do not carry a correlation key shared with
-        // PermissionRequest. For Codex, however, the event reports a tool name;
-        // the next PreToolUse for that same tool confirms that execution moved
-        // past permission routing (including auto-review). Keep alerts for
-        // other tools intact. Semantic outcomes such as task_failed also replace
-        // the pending state for this task.
+        // PermissionRequest and PreToolUse do not share a per-tool correlation
+        // identifier. Tool names can repeat during a turn, so activity alone
+        // cannot resolve a pending permission without risking another call's
+        // alert. Keep it until a terminal event or a definitive failure.
         if (currentTask?.persistent && GENERIC_ACTIVITY_EVENTS.has(event.kind)) {
             // A fresh turn in the same task identity is a retry after failure.
             // Let it clear only `failed`; permission and input prompts remain
             // visible until an explicit terminal event resolves them.
             const isRetryAfterFailure = currentTask.state === 'failed' && event.kind === 'task_started';
-            if (!isRetryAfterFailure && !matchingToolStarted)
+            if (!isRetryAfterFailure)
                 return {accepted: true, ...this.getSnapshot()};
         }
 

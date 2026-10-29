@@ -12,7 +12,7 @@ A integração atual usa os command hooks oficiais do Codex. O processo do hook 
 | `Interrupt` | `task_interrupted` | Limpa a tarefa interrompida |
 | `Stop` | `idle` | Limpa o estado sem afirmar que houve sucesso |
 
-O Codex não expõe `tool_use_id` em `PermissionRequest`, mas ambos os hooks informam `tool_name`. Quando um `PreToolUse` da mesma ferramenta chega, o Lúmen limpa o aviso porque a execução já passou pelo roteamento da permissão; uma ferramenta diferente não limpa um pedido pendente. O hook também pode ser executado quando o Codex encaminha a decisão para revisão automática, sem exibir uma pergunta à pessoa. Como o payload não informa quem recebeu a decisão, esse pareamento reduz o aviso falso depois que a ferramenta começa, mas pedidos negados automaticamente podem continuar visíveis até o fim/interrupção do turno.
+`PreToolUse` informa `tool_use_id`, mas o payload documentado de `PermissionRequest` não inclui esse campo. Como não há um identificador compartilhado, `tool_name` sozinho não confirma que a chamada que começou é a mesma que aguarda aprovação: chamadas paralelas da mesma ferramenta podem coexistir. Por isso, o Lúmen mantém o aviso de permissão durante atividade de ferramenta e o limpa quando recebe um evento terminal ou uma falha definitiva. Uma permissão encaminhada para revisão automática também pode não exibir uma pergunta à pessoa; o payload não informa quem recebeu a decisão.
 
 Eventos terminais têm precedência sobre notificações atrasadas: depois de `Stop` ou `Interrupt`, permissões tardias da mesma tarefa são descartadas até um novo `UserPromptSubmit`. Eventos subsequentes podem compartilhar o mesmo milissegundo; nessa situação, o evento terminal ainda encerra o estado anterior.
 

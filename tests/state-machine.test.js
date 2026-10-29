@@ -52,12 +52,30 @@ equalTimestampTerminalMachine.handleEvent(event('approval_required', 'same-milli
 result = equalTimestampTerminalMachine.handleEvent(event('idle', 'same-millisecond', 1));
 assert(result.accepted && result.state === 'idle',
     'a terminal event clears a permission notice even when both hooks share a timestamp');
+result = equalTimestampTerminalMachine.handleEvent(event('task_started', 'same-millisecond', 1));
+assert(!result.accepted && result.state === 'idle',
+    'a nonterminal task start at the terminal timestamp is rejected');
 result = equalTimestampTerminalMachine.handleEvent(event('approval_required', 'same-millisecond', 2));
 assert(!result.accepted && result.state === 'idle',
     'a delayed permission event cannot reopen a task after its terminal event');
-result = equalTimestampTerminalMachine.handleEvent(event('task_started', 'same-millisecond', 2));
+result = equalTimestampTerminalMachine.handleEvent(event('task_started', 'same-millisecond', 3));
 assert(result.accepted && result.state === 'working',
-    'a new task start can reuse the identity after the prior task ended');
+    'a later task start can reuse the identity after the prior task ended');
+
+const equalTimestampProgressMachine = new PetStateMachine();
+equalTimestampProgressMachine.handleEvent(event('approval_required', 'same-time-progress', 1));
+result = equalTimestampProgressMachine.handleEvent(event('working', 'same-time-progress', 2));
+assert(result.accepted && result.state === 'approval_required',
+    'tool activity keeps the pending approval visible');
+result = equalTimestampProgressMachine.handleEvent(event('approval_required', 'same-time-progress', 2));
+assert(!result.accepted && result.reason === 'out-of-order event' && result.state === 'approval_required',
+    'a same-time delayed approval cannot reopen or replace the current pending notification');
+
+const equalTimestampFailureRetryMachine = new PetStateMachine();
+equalTimestampFailureRetryMachine.handleEvent(event('task_failed', 'same-time-retry', 1));
+result = equalTimestampFailureRetryMachine.handleEvent(event('task_started', 'same-time-retry', 1));
+assert(!result.accepted && result.reason === 'out-of-order event' && result.state === 'failed',
+    'a same-time task start cannot replace a persistent failure');
 
 const delayedPromptMachine = new PetStateMachine();
 delayedPromptMachine.handleEvent(event('task_started', 'late-notification', 10, {source: 'claude_code'}));
